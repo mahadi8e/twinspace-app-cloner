@@ -1,0 +1,38 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- TwinSpace dark theme: black background, white text/accents, no colours.
+         Style name kept from upstream (referenced by the manifest). -->
+    <style name="Theme.BlackBox" parent="Theme.MaterialComponents.NoActionBar">
+
+        <item name="colorPrimary">@color/black</item>
+        <item name="colorPrimaryVariant">@color/black</item>
+        <item name="colorOnPrimary">@color/white</item>
+
+        <!-- White secondary = white FAB / controls with black content -->
+        <item name="colorSecondary">@color/white</item>
+        <item name="colorSecondaryVariant">@color/ts_surface_variant</item>
+        <item name="colorOnSecondary">@color/black</item>
+
+        <item name="android:windowBackground">@color/ts_background</item>
+        <item name="android:textColorPrimary">@color/ts_text_primary</item>
+        <item name="android:textColorSecondary">@color/ts_text_secondary</item>
+
+        <item name="android:statusBarColor" tools:targetApi="l">@color/black</item>
+
+        <item name="actionMenuTextColor">@color/white</item>
+
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
+    </style>
+
+    <style name="ToolBarColorStyle" parent="ThemeOverlay.AppCompat.ActionBar">
+        <item name="actionMenuTextColor">@color/white</item>
+        <item name="colorControlNormal">@color/white</item>
+
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
+    </style>
+
+    <style name="WelcomeTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash</item>
+    </style>
+
+</resources>

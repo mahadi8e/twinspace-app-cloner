@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TwinSpace palette: black & white only. The legacy colour names are kept
+         (they are referenced all over the upstream layouts) but redefined to the
+         black & white dark palette so every existing screen follows the theme. -->
+    <color name="primary">#000000</color>
+    <color name="primary_dark">#000000</color>
+    <color name="primary_light">#161616</color>
+    <color name="accent">#FFFFFF</color>
+    <color name="primary_text">#FFFFFF</color>
+    <color name="secondary_text">#9E9E9E</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+
+    <!-- TwinSpace black & white palette -->
+    <color name="ts_background">#000000</color>
+    <color name="ts_surface">#121212</color>
+    <color name="ts_surface_variant">#161616</color>
+    <color name="ts_stroke">#2A2A2A</color>
+    <color name="ts_text_primary">#FFFFFF</color>
+    <color name="ts_text_secondary">#9E9E9E</color>
+
+    <!-- Adaptive launcher icon background (TwinSpace icon, 2026-11-17) -->
+    <color name="ic_launcher_background">#000000</color>
+</resources>

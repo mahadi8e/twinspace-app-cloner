@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+            android:id="@+id/space_add_app"
+            android:title="@string/add_app" />
+
+    <item
+            android:id="@+id/space_rename"
+            android:title="@string/rename_space" />
+
+    <item
+            android:id="@+id/space_delete"
+            android:title="@string/delete_space" />
+</menu>

@@ -2,9 +2,12 @@ package top.niunaijun.blackboxa.app
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.util.Log
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackboxa.app.rocker.RockerManager
+import top.niunaijun.blackboxa.data.AppsRepository
 
 
 class App : Application() {
@@ -68,6 +71,30 @@ class App : Application() {
             AppManager.doOnCreate(mContext)
         } catch (e: Exception) {
             Log.e("App", "Error in onCreate: ${e.message}")
+        }
+    }
+
+    /**
+     * TwinSpace: the host app previously never released anything when the
+     * system ran low on memory. When memory pressure is moderate or worse,
+     * drop the cached app icons (they reload from PackageManager on the
+     * next refresh); at complete level also unregister the floating
+     * rocker's activity callbacks, since the process may be killed anyway.
+     * Cloned apps are untouched: their own trim events reach them through
+     * the engine's dispatchers.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        try {
+            if (level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE) {
+                AppsRepository.clearIconCache()
+                Log.d("App", "Trim memory level $level: cleared icon cache")
+            }
+            if (level >= ComponentCallbacks2.TRIM_MEMORY_COMPLETE) {
+                RockerManager.cleanup()
+            }
+        } catch (e: Exception) {
+            Log.e("App", "Error in onTrimMemory: ${e.message}")
         }
     }
 }

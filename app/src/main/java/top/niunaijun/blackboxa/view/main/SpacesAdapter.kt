@@ -235,6 +235,12 @@ class SpacesAdapter(
         touch.state = state
         if (grid.adapter !== gridAdapter) {
             grid.layoutManager = GridLayoutManager(activity, 4)
+            // TwinSpace: grid items are fixed-size app icons, so the
+            // RecyclerView can skip re-measuring on every change, and a
+            // small view cache (instead of the default) keeps fewer
+            // off-screen holders — and their bitmaps — in memory.
+            grid.setHasFixedSize(true)
+            grid.setItemViewCacheSize(4)
             // A2: use the upstream-proven .bind(grid), as in AppsFragment,
             // FakeManagerActivity, GmsManagerActivity and ListActivity,
             // instead of assigning the adapter directly. bind() does the

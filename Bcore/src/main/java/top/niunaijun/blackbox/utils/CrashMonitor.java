@@ -43,6 +43,10 @@ public class CrashMonitor {
     
     private static boolean sIsMonitoring = false;
     private static Handler sMainHandler;
+    // TwinSpace: keep the periodic runnables so they can be stopped when
+    // the app is swiped away and restarted when the engine is needed again.
+    private static Runnable sHealthCheckRunnable;
+    private static Runnable sPatternAnalysisRunnable;
     
     
     public static class CrashInfo {
@@ -169,48 +173,88 @@ public class CrashMonitor {
         if (sIsMonitoring) {
             return;
         }
-        
+
         try {
             sIsMonitoring = true;
-            
-            
+
+
             startPeriodicHealthChecks();
-            
-            
+
+
             startCrashPatternAnalysis();
-            
+
             Slog.d(TAG, "Crash monitoring started");
-            
+
         } catch (Exception e) {
             Slog.w(TAG, "Failed to start crash monitoring: " + e.getMessage());
         }
     }
-    
-    
+
+    /**
+     * TwinSpace: stop only the periodic timers (30s health check, 60s
+     * pattern analysis) that wake the main thread forever, even with no
+     * cloned app running. The crash handlers installed by
+     * installGlobalCrashHandlers() and the local crash log file are
+     * untouched, so crash handling and local logging keep working.
+     * Call {@link #restartMonitoring()} when the engine is needed again.
+     */
+    public static void stopMonitoring() {
+        try {
+            if (sMainHandler != null) {
+                if (sHealthCheckRunnable != null) {
+                    sMainHandler.removeCallbacks(sHealthCheckRunnable);
+                }
+                if (sPatternAnalysisRunnable != null) {
+                    sMainHandler.removeCallbacks(sPatternAnalysisRunnable);
+                }
+            }
+            sIsMonitoring = false;
+            Slog.d(TAG, "Crash monitoring timers stopped");
+        } catch (Exception e) {
+            Slog.w(TAG, "Failed to stop crash monitoring: " + e.getMessage());
+        }
+    }
+
+    /** Restart the periodic timers after {@link #stopMonitoring()}. */
+    public static void restartMonitoring() {
+        try {
+            if (!sIsInitialized) {
+                initialize();
+                return;
+            }
+            startMonitoring();
+        } catch (Exception e) {
+            Slog.w(TAG, "Failed to restart crash monitoring: " + e.getMessage());
+        }
+    }
+
+
     private static void startPeriodicHealthChecks() {
         if (sMainHandler != null) {
-            sMainHandler.postDelayed(new Runnable() {
+            sHealthCheckRunnable = new Runnable() {
                 @Override
                 public void run() {
                     performHealthCheck();
-                    
+
                     sMainHandler.postDelayed(this, 30000);
                 }
-            }, 30000); 
+            };
+            sMainHandler.postDelayed(sHealthCheckRunnable, 30000);
         }
     }
-    
-    
+
+
     private static void startCrashPatternAnalysis() {
         if (sMainHandler != null) {
-            sMainHandler.postDelayed(new Runnable() {
+            sPatternAnalysisRunnable = new Runnable() {
                 @Override
                 public void run() {
                     analyzeCrashPatterns();
-                    
+
                     sMainHandler.postDelayed(this, 60000);
                 }
-            }, 60000); 
+            };
+            sMainHandler.postDelayed(sPatternAnalysisRunnable, 60000);
         }
     }
     
@@ -380,7 +424,9 @@ public class CrashMonitor {
             
             if (memoryUsagePercent > 80) {
                 Slog.w(TAG, "High memory usage detected: " + String.format("%.1f%%", memoryUsagePercent));
-                System.gc(); 
+                // TwinSpace: no explicit System.gc() here. Forcing GC from a
+                // 30-second timer costs CPU and power on its own; the
+                // runtime collects when it needs to.
             }
             
             
@@ -617,8 +663,9 @@ public class CrashMonitor {
         @Override
         public boolean attemptRecovery(CrashInfo crashInfo) {
             try {
-                
-                System.gc();
+                // TwinSpace: no explicit System.gc() on the crash path; the
+                // runtime handles collection, and a forced GC here only
+                // adds CPU work while a crash is being handled.
                 return true;
             } catch (Exception e) {
                 Slog.w(TAG, "Memory crash recovery failed: " + e.getMessage());

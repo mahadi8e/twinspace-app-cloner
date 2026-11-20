@@ -34,6 +34,16 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
     private lateinit var spacesAdapter: SpacesAdapter
 
     /**
+     * TwinSpace: onStart() used to reload every Space on every return to
+     * the home screen, even when nothing changed. Remember the last
+     * loaded user list and skip the reload when it is unchanged. A new
+     * app still shows up: installs go through installIntoSpace(), and a
+     * new or deleted Space changes the user list.
+     */
+    private var lastRefreshedUserIds: List<Int> = emptyList()
+    private var spacesLoaded = false
+
+    /**
      * A1: keep the engine callback in a field so it can be removed.
      * Previously initSpaces() registered a new anonymous callback on every
      * onCreate() and never removed it, so dead MainActivity copies piled up
@@ -123,6 +133,13 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
         try {
             val userIds = BlackBoxCore.get().users.map { it.id }
             spacesAdapter.submitSpaces(userIds)
+            if (userIds == lastRefreshedUserIds && spacesLoaded) {
+                // Nothing changed since the last load; skip reloading every
+                // Space (and every app icon) again.
+                return
+            }
+            lastRefreshedUserIds = userIds
+            spacesLoaded = true
             userIds.forEach { spacesAdapter.loadSpace(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Error in refreshSpaces: ${e.message}")

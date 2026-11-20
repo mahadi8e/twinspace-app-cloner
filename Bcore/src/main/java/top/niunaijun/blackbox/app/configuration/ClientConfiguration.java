@@ -37,6 +37,8 @@ public abstract class ClientConfiguration {
 
     
     public String getLogSenderChatId() {
-        return "-1003719573856";
+        // TwinSpace: no upstream log destination. Returning null disables
+        // BlackBoxCore.sendLogs(), which returns early without a chat id.
+        return null;
     }
 }

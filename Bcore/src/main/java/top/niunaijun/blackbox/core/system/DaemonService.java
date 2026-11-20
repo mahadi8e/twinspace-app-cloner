@@ -1,5 +1,6 @@
 package top.niunaijun.blackbox.core.system;
 
+import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -12,7 +13,10 @@ import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
+import java.util.List;
+
 import top.niunaijun.blackbox.BlackBoxCore;
+import top.niunaijun.blackbox.utils.CrashMonitor;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 
@@ -42,27 +46,93 @@ public class DaemonService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "DaemonService onStartCommand");
-        
+
+        // The engine is needed again (app opened or a clone launched), so
+        // restart the periodic crash-monitor timers if they were stopped
+        // when the app was swiped away. This is idempotent.
         try {
-            
+            CrashMonitor.restartMonitoring();
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to restart crash monitoring: " + e.getMessage());
+        }
+
+        try {
+
             Intent innerIntent = new Intent(this, DaemonInnerService.class);
             startService(innerIntent);
-            
-            
+
+
             if (BuildCompat.isOreo()) {
                 if (!startForegroundService()) {
                     Log.w(TAG, "Failed to start foreground service, falling back to regular service");
-                    return START_STICKY;
+                    // TwinSpace: do not ask Android to restart the daemon on
+                    // its own. The engine restarts it on demand when the
+                    // user opens TwinSpace or launches a clone.
+                    return START_NOT_STICKY;
                 }
             }
-            
+
             Log.d(TAG, "DaemonService started successfully");
-            return START_STICKY;
-            
+            return START_NOT_STICKY;
+
         } catch (Exception e) {
             Log.e(TAG, "Error starting DaemonService: " + e.getMessage(), e);
-            
-            return START_STICKY;
+
+            return START_NOT_STICKY;
+        }
+    }
+
+    /**
+     * TwinSpace: called when TwinSpace is swiped away from recents. If no
+     * cloned app is running, the daemon (and the periodic crash-monitor
+     * timers) stop here, so the engine no longer burns power in the
+     * background. If a cloned app IS running, the daemon stays, so the
+     * clone keeps working.
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        Log.d(TAG, "DaemonService onTaskRemoved");
+        try {
+            if (!isAnyVirtualAppRunning()) {
+                Log.d(TAG, "No cloned app running, stopping daemon after task removed");
+                try {
+                    CrashMonitor.stopMonitoring();
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to stop crash monitoring: " + e.getMessage());
+                }
+                stopSelf();
+            } else {
+                Log.d(TAG, "A cloned app is still running, keeping daemon");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in onTaskRemoved: " + e.getMessage(), e);
+        }
+        super.onTaskRemoved(rootIntent);
+    }
+
+    /**
+     * Virtual app processes are named hostPkg + ":p..." (see
+     * BProcessManagerService.startProcessLocked). The black service process
+     * itself and the host main process do not match that prefix.
+     * On any error, assume a clone may be running so we never kill a
+     * running cloned app by mistake.
+     */
+    private boolean isAnyVirtualAppRunning() {
+        try {
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (am == null) return true;
+            List<ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
+            if (processes == null) return true;
+            String prefix = BlackBoxCore.getHostPkg() + ":p";
+            for (ActivityManager.RunningAppProcessInfo info : processes) {
+                if (info.processName != null && info.processName.startsWith(prefix)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to check running cloned apps: " + e.getMessage());
+            return true;
         }
     }
 

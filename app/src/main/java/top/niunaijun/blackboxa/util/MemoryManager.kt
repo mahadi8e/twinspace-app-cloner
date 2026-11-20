@@ -57,43 +57,36 @@ object MemoryManager {
     }
 
     
+    // TwinSpace: explicit GC is no longer forced. System.gc() (plus the
+    // 100ms sleep that followed it) costs CPU and power and usually runs
+    // a full collection; the runtime collects when it needs to. Callers
+    // in AppsRepository and AppsFragment already check isMemoryCritical()
+    // and skip heavy work (icon loading) instead. Kept with the same
+    // signature so those callers still compile.
     fun forceGarbageCollectionIfNeeded(): Boolean {
         return try {
             if (isMemoryCritical()) {
                 Log.w(
                         TAG,
-                        "Memory usage critical (${getMemoryUsagePercentage()}%), forcing garbage collection"
+                        "Memory usage critical (${getMemoryUsagePercentage()}%), skipping explicit GC"
                 )
-                System.gc()
-                Thread.sleep(100) 
-                true
+                false
             } else {
                 false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error during garbage collection: ${e.message}")
+            Log.e(TAG, "Error checking memory: ${e.message}")
             false
         }
     }
 
-    
+
     fun optimizeMemoryForRecyclerView() {
         try {
             val memoryUsage = getMemoryUsagePercentage()
 
             if (memoryUsage > 70) {
-                Log.d(TAG, "Memory usage high (${memoryUsage}%), optimizing for RecyclerView")
-
-                
-                System.gc()
-
-                
-                try {
-                    val runtime = Runtime.getRuntime()
-                    runtime.gc()
-                } catch (e: Exception) {
-                    Log.w(TAG, "Could not force runtime GC: ${e.message}")
-                }
+                Log.d(TAG, "Memory usage high (${memoryUsage}%), skipping explicit GC")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error optimizing memory: ${e.message}")

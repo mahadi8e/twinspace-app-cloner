@@ -34,7 +34,7 @@ import java.util.Collections
  * TwinSpace home: a vertical list of Space cards.
  *
  * Each card is one BlackBox virtual user ("space"). The card body hosts the
- * space's app grid through a directly-bound [RVAdapter] running the existing
+ * space's app grid through an [RVAdapter] bound with `.bind()`, running the existing
  * [AppsAdapter] item layout, fed by a per-space [AppsViewModel] — the same
  * repository / ViewModel data flow the old ViewPager pages (AppsFragment)
  * used, bound to a card instead of a full-screen page. The last item is the
@@ -235,7 +235,12 @@ class SpacesAdapter(
         touch.state = state
         if (grid.adapter !== gridAdapter) {
             grid.layoutManager = GridLayoutManager(activity, 4)
-            grid.adapter = gridAdapter
+            // A2: use the upstream-proven .bind(grid), as in AppsFragment,
+            // FakeManagerActivity, GmsManagerActivity and ListActivity,
+            // instead of assigning the adapter directly. bind() does the
+            // adapter's internal RecyclerView wiring; a direct assignment
+            // compiles but leaves that wiring unconfirmed.
+            gridAdapter.bind(grid)
         }
         if (!touch.helpersAttached) {
             touch.helpersAttached = true

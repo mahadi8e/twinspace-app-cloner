@@ -20,6 +20,21 @@ class AppsRepository {
     val TAG: String = "AppsRepository"
     private var mInstalledList = mutableListOf<AppInfo>()
 
+    companion object {
+        // TwinSpace: cache app icons so every Space refresh does not load
+        // and re-scale them again from PackageManager. Icons are already
+        // capped at 96px (about 36KB each), so 32 entries stay under ~1.2MB.
+        // The same Drawable is shared by every ImageView showing it, so
+        // callers must never recycle a cached bitmap.
+        private val iconCache = android.util.LruCache<String, android.graphics.drawable.Drawable>(32)
+
+        /** Drop all cached icons, e.g. when the system trims memory. */
+        @JvmStatic
+        fun clearIconCache() {
+            iconCache.evictAll()
+        }
+    }
+
     
     private fun safeLoadAppLabel(applicationInfo: ApplicationInfo): String {
         return try {
@@ -35,7 +50,11 @@ class AppsRepository {
             applicationInfo: ApplicationInfo
     ): android.graphics.drawable.Drawable? {
         return try {
-            
+
+            // TwinSpace: reuse the cached icon instead of loading and
+            // re-scaling it from PackageManager on every refresh.
+            iconCache.get(applicationInfo.packageName)?.let { return it }
+
             if (MemoryManager.shouldSkipIconLoading()) {
                 Log.w(
                         TAG,
@@ -46,10 +65,10 @@ class AppsRepository {
 
             val icon = BlackBoxCore.getPackageManager().getApplicationIcon(applicationInfo)
 
-            
+
             if (icon is android.graphics.drawable.BitmapDrawable) {
                 val bitmap = icon.bitmap
-                
+
                 if (bitmap.width > 96 || bitmap.height > 96) {
                     try {
                         val scaledBitmap =
@@ -58,23 +77,23 @@ class AppsRepository {
                                 BlackBoxCore.getPackageManager()
                                         .getResourcesForApplication(applicationInfo.packageName),
                                 scaledBitmap
-                        )
+                        ).also { iconCache.put(applicationInfo.packageName, it) }
                     } catch (e: Exception) {
                         Log.w(
                                 TAG,
                                 "Failed to scale icon for ${applicationInfo.packageName}: ${e.message}"
                         )
-                        icon
+                        icon.also { iconCache.put(applicationInfo.packageName, it) }
                     }
                 } else {
-                    icon
+                    icon.also { iconCache.put(applicationInfo.packageName, it) }
                 }
             } else {
-                icon
+                icon.also { iconCache.put(applicationInfo.packageName, it) }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load icon for ${applicationInfo.packageName}: ${e.message}")
-            null 
+            null
         }
     }
 

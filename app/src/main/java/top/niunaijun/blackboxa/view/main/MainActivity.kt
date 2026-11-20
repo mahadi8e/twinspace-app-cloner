@@ -33,6 +33,18 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
 
     private lateinit var spacesAdapter: SpacesAdapter
 
+    /**
+     * A1: keep the engine callback in a field so it can be removed.
+     * Previously initSpaces() registered a new anonymous callback on every
+     * onCreate() and never removed it, so dead MainActivity copies piled up
+     * in BlackBoxCore and each one refreshed every Space when services
+     * became available. The same instance is now removed in onDestroy().
+     */
+    private val serviceAvailableCallback = Runnable {
+        Log.d(TAG, "Services became available, refreshing spaces")
+        runOnUiThread { refreshSpaces() }
+    }
+
     companion object {
         private const val TAG = "MainActivity"
         private const val STORAGE_PERMISSION_REQUEST_CODE = 1001
@@ -82,16 +94,22 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
         }
     }
 
+    override fun onDestroy() {
+        try {
+            BlackBoxCore.get().removeServiceAvailableCallback(serviceAvailableCallback)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing service available callback: ${e.message}")
+        }
+        super.onDestroy()
+    }
+
     private fun initSpaces() {
         try {
             spacesAdapter = SpacesAdapter(this, this)
             viewBinding.spacesRecycler.layoutManager = LinearLayoutManager(this)
             viewBinding.spacesRecycler.adapter = spacesAdapter
             try {
-                BlackBoxCore.get().addServiceAvailableCallback {
-                    Log.d(TAG, "Services became available, refreshing spaces")
-                    runOnUiThread { refreshSpaces() }
-                }
+                BlackBoxCore.get().addServiceAvailableCallback(serviceAvailableCallback)
             } catch (e: Exception) {
                 Log.e(TAG, "Error registering service available callback: ${e.message}")
             }

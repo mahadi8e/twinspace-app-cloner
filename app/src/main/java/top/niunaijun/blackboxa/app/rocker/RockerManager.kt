@@ -22,6 +22,12 @@ object RockerManager {
 
     private const val TAG = "RockerManager"
     private var isInitialized = false
+    // TwinSpace: keep the registered callback and application so cleanup()
+    // can actually unregister it. Previously cleanup() only flipped the
+    // flag and the callback (which attaches the floating view to every
+    // activity) stayed registered for the life of the process.
+    private var lifecycleCallback: Application.ActivityLifecycleCallbacks? = null
+    private var registeredApplication: Application? = null
 
     
     private const val Ea = 6378137.0 
@@ -99,6 +105,10 @@ object RockerManager {
                             }
                         }
                     }
+                            .also {
+                                lifecycleCallback = it
+                                registeredApplication = application
+                            }
             )
 
             isInitialized = true
@@ -217,6 +227,19 @@ object RockerManager {
     
     fun cleanup() {
         try {
+            // TwinSpace: unregister the activity callbacks, so the floating
+            // view is no longer attached to every activity after this.
+            // The view itself is attached/detached per activity by those
+            // callbacks; once they are gone, nothing re-attaches it.
+            lifecycleCallback?.let { callback ->
+                try {
+                    registeredApplication?.unregisterActivityLifecycleCallbacks(callback)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error unregistering lifecycle callbacks: ${e.message}")
+                }
+            }
+            lifecycleCallback = null
+            registeredApplication = null
             isInitialized = false
             Log.d(TAG, "RockerManager cleaned up")
         } catch (e: Exception) {

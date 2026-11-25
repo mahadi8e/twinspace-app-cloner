@@ -21,6 +21,7 @@ import top.niunaijun.blackboxa.view.base.LoadingActivity
 import top.niunaijun.blackboxa.view.fake.FakeManagerActivity
 import top.niunaijun.blackboxa.view.list.ListActivity
 import top.niunaijun.blackboxa.view.setting.SettingActivity
+import top.niunaijun.blackboxa.vpn.TwinSpaceVpn
 
 /**
  * TwinSpace home: a vertically scrolling list of Space cards (see
@@ -84,6 +85,12 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
             checkStoragePermission()
 
             checkVpnPermission()
+
+            // If the user left the USA VPN on, reconnect it now that the app
+            // is open, so clones get the USA IP right away. No-ops when the
+            // VPN is off, when no WireGuard config is saved yet, or when VPN
+            // permission has not been granted (see vpnPermissionResult).
+            TwinSpaceVpn.maybeAutoStart(this)
 
             try {
                 BlackBoxCore.get().onAfterMainActivityOnCreate(this)
@@ -368,6 +375,8 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
                     if (result.resultCode == RESULT_OK) {
                         Log.d(TAG, "VPN permission granted!")
 
+                        // First grant: start the USA VPN now if the user left it on.
+                        TwinSpaceVpn.maybeAutoStart(this@MainActivity)
                     } else {
                         Log.w(TAG, "VPN permission denied by user")
                     }

@@ -1656,7 +1656,7 @@ public class BlackBoxCore extends ClientConfiguration {
         }
 
         // TwinSpace: hidden-API exemption, in order of preference. (1) The
-        // current LSPosed bypass (6.2) works on Android 15/16; (2) the
+        // current LSPosed bypass (6.1) works on Android 15/16; (2) the
         // native ART lookup; (3) FreeReflection. Each step is guarded so a
         // failure here never kills the guest process — it only degrades the
         // hooks that depend on hidden APIs. The old code called the native

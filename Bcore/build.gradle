@@ -107,10 +107,11 @@ dependencies {
 
     implementation 'com.github.tiann:FreeReflection:3.2.2'
 
-    // TwinSpace: current hidden-API bypass (LSPosed, 6.2 — supports Android
-    // 15/16). Primary exemption path in BlackBoxCore.setEssentialProperties;
-    // the native disableHiddenApi() and FreeReflection stay as fallbacks.
-    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.2'
+    // TwinSpace: current hidden-API bypass (LSPosed 6.1 — supports Android
+    // 15/16; 6.2 needs compileSdk 37, this project compiles against 35).
+    // Primary exemption path in BlackBoxCore.setEssentialProperties; the
+    // native disableHiddenApi() and FreeReflection stay as fallbacks.
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
 
 
 

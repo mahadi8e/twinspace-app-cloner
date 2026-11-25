@@ -1680,41 +1680,12 @@ public class BlackBoxCore extends ClientConfiguration {
     
     
     private void initVpnService() {
-        try {
-            
-            if (mClientConfiguration == null || !mClientConfiguration.isUseVpnNetwork()) {
-                Slog.d(TAG, "VPN network mode disabled, using normal network");
-                return;
-            }
-            
-            
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        
-                        Intent vpnIntent = new Intent(getContext(), top.niunaijun.blackbox.proxy.ProxyVpnService.class);
-                        vpnIntent.setAction("android.net.VpnService");
-                        
-                        if (BuildCompat.isOreo()) {
-                            getContext().startForegroundService(vpnIntent);
-                        } else {
-                            getContext().startService(vpnIntent);
-                        }
-                        
-                        Slog.d(TAG, "VPN service started successfully for internet access");
-                    } catch (Exception e) {
-                        Slog.w(TAG, "Failed to start VPN service: " + e.getMessage());
-                        
-                        
-                    }
-                }
-            }, "VPNServiceInit").start();
-            
-        } catch (Exception e) {
-            Slog.w(TAG, "Failed to initialize VPN service: " + e.getMessage());
-            
-        }
+        // TwinSpace: the VPN is now a real WireGuard tunnel managed by the
+        // app module (TwinSpaceVpn, GoBackend). The old ProxyVpnService only
+        // opened a TUN and never forwarded a packet, so starting it here
+        // would blackhole the clones' traffic. Do not start it. The app
+        // module starts/stops the tunnel from the use_vpn_network flag.
+        Slog.d(TAG, "VPN managed by TwinSpaceVpn (WireGuard) in the app module, skipping ProxyVpnService");
     }
     
     

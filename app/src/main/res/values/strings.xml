@@ -57,7 +57,22 @@
     <string name="other">Others</string>
     <string name="daemon_enable">Daemon</string>
     <string name="use_vpn_network">Use VPN Network</string>
-    <string name="use_vpn_network_summary">Route traffic through VPN for sandboxed apps (may improve network access)</string>
+    <string name="use_vpn_network_summary">USA VPN (WireGuard) for cloned apps — USA IP and California location. Only clones use it, never other apps.</string>
+    <string name="vpn_config">VPN config (WireGuard)</string>
+    <string name="vpn_config_summary">Paste your free Proton VPN USA WireGuard (.conf) file — the VPN cannot connect without it</string>
+    <string name="vpn_config_set">WireGuard config saved — USA server ready</string>
+    <string name="vpn_config_hint">Paste the full WireGuard .conf text from your free Proton VPN account (Downloads → WireGuard configuration → USA server). Only this app and its clones use it.</string>
+    <string name="vpn_config_save">Save</string>
+    <string name="vpn_config_saved">VPN config saved</string>
+    <string name="vpn_no_config">No VPN config yet — add your WireGuard .conf in VPN config first</string>
+    <string name="vpn_not_authorized">VPN permission not allowed — allow it when the app asks, then turn VPN on again</string>
+    <string name="vpn_started">USA VPN on — clones now use a USA IP and California location</string>
+    <string name="vpn_start_failed">Could not start the VPN — check the WireGuard config and try again</string>
+    <string name="vpn_stopped">USA VPN off — clones use your normal connection again</string>
+    <string name="vpn_prompt_title">USA VPN for this clone?</string>
+    <string name="vpn_prompt_message">Turn on the USA VPN for this clone? It will get a USA IP and a California location. You can turn it off anytime in Settings.</string>
+    <string name="vpn_prompt_turn_on">Turn on VPN</string>
+    <string name="vpn_prompt_not_now">Not now</string>
     <string name="disable_flag_secure">Disable Flag Secure</string>
     <string name="disable_flag_secure_summary">Allow screenshots and screen recording in apps</string>
     <string name="gms_manager">GMS Manager</string>
@@ -82,3 +97,4 @@
     <string name="gms_prompt_not_now">Not now</string>
     <string name="gms_installing">Installing Google services…</string>
 </resources>
+

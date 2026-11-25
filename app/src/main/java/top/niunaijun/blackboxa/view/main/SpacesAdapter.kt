@@ -24,6 +24,7 @@ import top.niunaijun.blackboxa.databinding.ItemSpaceCardBinding
 import top.niunaijun.blackboxa.util.GmsPrompt
 import top.niunaijun.blackboxa.util.InjectionUtil
 import top.niunaijun.blackboxa.util.ShortcutUtil
+import top.niunaijun.blackboxa.util.VpnPrompt
 import top.niunaijun.blackboxa.util.toast
 import top.niunaijun.blackboxa.view.apps.AppsAdapter
 import top.niunaijun.blackboxa.view.apps.AppsTouchCallBack
@@ -72,6 +73,14 @@ class SpacesAdapter(
          */
         var gmsPromptHandled = false
 
+        /**
+         * Clone-time USA VPN prompt guard, mirroring [gmsPromptHandled]:
+         * reset by [installIntoSpace], set when a clone-success event is
+         * handled, so one clone operation can raise the prompt at most once.
+         * Deliberately NOT persisted.
+         */
+        var vpnPromptHandled = false
+
         /** Long-press menu waiting for touch-up (upstream AppsFragment pattern). */
         var pendingMenu: PopupMenu? = null
     }
@@ -113,6 +122,8 @@ class SpacesAdapter(
         // A new picker session starts here: allow this clone to raise the
         // GMS prompt once (see SpaceState.gmsPromptHandled).
         state.gmsPromptHandled = false
+        // And the USA VPN prompt once (see SpaceState.vpnPromptHandled).
+        state.vpnPromptHandled = false
         state.viewModel?.install(source, userId)
     }
 
@@ -162,6 +173,10 @@ class SpacesAdapter(
                 if (clonedUserId == userId && !state.gmsPromptHandled) {
                     state.gmsPromptHandled = true
                     GmsPrompt.maybePrompt(activity, clonedUserId, clonedPackage)
+                }
+                if (clonedUserId == userId && !state.vpnPromptHandled) {
+                    state.vpnPromptHandled = true
+                    VpnPrompt.maybePrompt(activity, clonedUserId, clonedPackage)
                 }
             }
         }

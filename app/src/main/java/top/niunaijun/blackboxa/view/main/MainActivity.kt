@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -16,6 +18,7 @@ import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.databinding.ActivityMainBinding
+import top.niunaijun.blackboxa.util.CrashReporter
 import top.niunaijun.blackboxa.util.inflate
 import top.niunaijun.blackboxa.view.base.LoadingActivity
 import top.niunaijun.blackboxa.view.fake.FakeManagerActivity
@@ -68,9 +71,29 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        try {
-            super.onCreate(savedInstanceState)
+        super.onCreate(savedInstanceState)
 
+        // TwinSpace diagnostic: if the previous launch crashed, show the
+        // saved report instead of starting normally (the normal start is
+        // what crashed). If it died with no Java trace, it was a native
+        // crash, and that is shown instead.
+        try {
+            if (CrashReporter.hasReport(this)) {
+                showCrashReportDialog()
+                return
+            }
+            if (CrashReporter.previousLaunchDied) {
+                showNativeCrashDialog()
+                return
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking crash report: ${e.message}")
+        }
+        initNormal()
+    }
+
+    private fun initNormal() {
+        try {
             try {
                 BlackBoxCore.get().onBeforeMainActivityOnCreate(this)
             } catch (e: Exception) {
@@ -97,11 +120,67 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
             } catch (e: Exception) {
                 Log.e(TAG, "Error in onAfterMainActivityOnCreate: ${e.message}")
             }
+
+            // Startup completed: this launch was clean.
+            try {
+                CrashReporter.markClean(this)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error marking clean launch: ${e.message}")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Critical error in onCreate: ${e.message}")
 
             showErrorDialog("Failed to initialize app: ${e.message}")
         }
+    }
+
+    private fun showCrashReportDialog() {
+        val report = CrashReporter.readReport(this)
+        val text = "The app crashed on the last launch. Please share this report so the crash can be fixed.\n\n" + report
+        val scroll = ScrollView(this)
+        val textView = TextView(this)
+        textView.text = text
+        textView.setTextIsSelectable(true)
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        textView.setPadding(pad, pad, pad, pad)
+        scroll.addView(textView)
+        AlertDialog.Builder(this)
+            .setTitle("TwinSpace crash report")
+            .setView(scroll)
+            .setPositiveButton("Share") { _, _ ->
+                CrashReporter.shareReport(this, report)
+            }
+            .setNegativeButton("Clear & retry") { _, _ ->
+                CrashReporter.clearReport(this)
+                CrashReporter.clearMarker(this)
+                initNormal()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun showNativeCrashDialog() {
+        val info = CrashReporter.deviceInfo(this)
+        val text = "The app died during startup last time, but no Java crash was recorded, so this looks like a native crash in the engine.\n\n" + info
+        val scroll = ScrollView(this)
+        val textView = TextView(this)
+        textView.text = text
+        textView.setTextIsSelectable(true)
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        textView.setPadding(pad, pad, pad, pad)
+        scroll.addView(textView)
+        AlertDialog.Builder(this)
+            .setTitle("TwinSpace died on startup")
+            .setView(scroll)
+            .setPositiveButton("Share") { _, _ ->
+                CrashReporter.shareReport(this, text)
+            }
+            .setNegativeButton("Clear & retry") { _, _ ->
+                CrashReporter.clearMarker(this)
+                initNormal()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     override fun onStart() {

@@ -76,7 +76,11 @@ dependencies {
 
     // USA VPN: official WireGuard tunnel library (GoBackend, wireguard-go).
     // Used by TwinSpaceVpn to run the user's own Proton USA .conf.
-    implementation "com.wireguard.android:tunnel:1.0.20260102"
+    // Pinned to 1.0.20250531 (not the latest): the 2025-12 / 2026-01
+    // releases raised their minSdk to 24, which would drop Android 5.0/6.0
+    // support (this app is minSdk 21); 1.0.20250531 is still minSdk 21
+    // and exposes the same GoBackend / Config API used by TwinSpaceVpn.
+    implementation "com.wireguard.android:tunnel:1.0.20250531"
     
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.3.1"
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.3.1"

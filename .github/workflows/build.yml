@@ -20,6 +20,13 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # setup-android defaults to packages 'tools platform-tools', but
+          # the obsolete 'tools' package no longer exists in modern
+          # cmdline-tools, so sdkmanager exits 1 and the step fails.
+          # Only platform-tools is needed here; the platform, build-tools
+          # and NDK are installed by the next step.
+          packages: platform-tools
 
       - name: Install SDK platform, build-tools and NDK
         run: |

@@ -100,6 +100,9 @@ public class ActivityStack {
 
         ResolveInfo resolveInfo = BPackageManagerService.get().resolveActivity(intent, GET_ACTIVITIES, resolvedType, userId);
         if (resolveInfo == null || resolveInfo.activityInfo == null) {
+            // TwinSpace: was a silent `return 0` — the splash just vanished
+            // with no log. Say why the guest never started.
+            Log.e("TwinSpaceLaunch", "startActivityLocked: resolveInfo NULL for intent=" + intent + " user=" + userId + " (guest activity not found — install may have failed)");
             return 0;
         }
         Log.d(TAG, "startActivityLocked : " + resolveInfo.activityInfo);

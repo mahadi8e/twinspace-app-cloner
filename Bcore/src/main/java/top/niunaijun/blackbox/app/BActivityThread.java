@@ -363,7 +363,15 @@ public class BActivityThread extends IBActivityThread.Stub {
         } catch (Throwable ignored) {
         }
 
+        Log.e("TwinSpaceLaunch", "bind pkg=" + packageName + " process=" + processName + " user=" + BActivityThread.getUserId());
         PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, BActivityThread.getUserId());
+        // TwinSpace: a null packageInfo (virtual user never created/persisted)
+        // used to NPE on the next line, killing the guest before any UI.
+        // Fail with a clear message instead.
+        if (packageInfo == null || packageInfo.applicationInfo == null) {
+            Log.e("TwinSpaceLaunch", "bind FAILED: no packageInfo for pkg=" + packageName + " user=" + BActivityThread.getUserId() + " (virtual user missing? re-clone the app)");
+            throw new RuntimeException("guest package not installed for user: " + packageName);
+        }
         ApplicationInfo applicationInfo = packageInfo.applicationInfo;
         if (packageInfo.providers == null) {
             packageInfo.providers = new ProviderInfo[]{};
@@ -399,9 +407,23 @@ public class BActivityThread extends IBActivityThread.Stub {
             BRCompatibility.get().setTargetSdkVersion(applicationInfo.targetSdkVersion);
         }
 
-        NativeCore.init(Build.VERSION.SDK_INT);
+        // TwinSpace: both native steps are guarded — a failure must degrade
+        // the guest, not kill it before Application.onCreate.
+        try {
+            if (NativeCore.isLoaded()) {
+                NativeCore.init(Build.VERSION.SDK_INT);
+            } else {
+                Log.e("TwinSpaceLaunch", "bind: NativeCore.init skipped, libblackbox not loaded");
+            }
+        } catch (Throwable t) {
+            Log.e("TwinSpaceLaunch", "bind: NativeCore.init FAILED (continuing degraded): " + t);
+        }
         assert packageContext != null;
-        IOCore.get().enableRedirect(packageContext);
+        try {
+            IOCore.get().enableRedirect(packageContext);
+        } catch (Throwable t) {
+            Log.e("TwinSpaceLaunch", "bind: IOCore.enableRedirect FAILED (continuing degraded): " + t);
+        }
 
         AppBindData bindData = new AppBindData();
         bindData.appInfo = applicationInfo;
@@ -1043,7 +1065,10 @@ public class BActivityThread extends IBActivityThread.Stub {
                             providerInfo.processName.equals(context.getPackageName()) || providerInfo.multiprocess) {
                         installProvider(BlackBoxCore.mainThread(), context, providerInfo, null);
                     }
-                } catch (Throwable ignored) {
+                } catch (Throwable t) {
+                    // TwinSpace: was an empty catch — a failing provider
+                    // install was invisible. Log it; other providers still run.
+                    Log.e("TwinSpaceLaunch", "bind: provider install FAILED " + providerInfo.name + ": " + t);
                 }
             }
         } finally {

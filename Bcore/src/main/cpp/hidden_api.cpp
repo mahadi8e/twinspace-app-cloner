@@ -73,6 +73,13 @@ bool disable_hidden_api(JNIEnv *env) {
     auto func = reinterpret_cast<void (*)(JNIEnv *, jclass, jobjectArray)>(addr);
     
     func(env, stringClass, args);
+    // TwinSpace: the ART call above can throw (e.g. wrong signature on a
+    // newer runtime) — check and clear it instead of reporting success.
+    if (env->ExceptionCheck()) {
+        ALOGE("HiddenAPI: setHiddenApiExemptions threw, exemptions NOT applied");
+        env->ExceptionClear();
+        return false;
+    }
     ALOGD("HiddenAPI: Successfully disabled hidden API restrictions");
     return true;
 }

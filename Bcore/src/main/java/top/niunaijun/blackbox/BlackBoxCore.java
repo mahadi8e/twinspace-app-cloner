@@ -20,6 +20,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Process;
+import android.util.Log;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -33,6 +34,7 @@ import java.util.Map;
 import black.android.app.BRActivityThread;
 import black.android.os.BRUserHandle;
 import me.weishu.reflection.Reflection;
+import org.lsposed.hiddenapibypass.HiddenApiBypass;
 import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.app.LauncherActivity;
 import top.niunaijun.blackbox.app.configuration.AppLifecycleCallback;
@@ -844,7 +846,12 @@ public class BlackBoxCore extends ClientConfiguration {
                 Slog.w(TAG, "Could not access WindowManager leak field: " + e.getMessage());
             }
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // TwinSpace: this used to catch Exception only, so an Error from
+            // the native lib (UnsatisfiedLinkError) escaped attachBaseContext
+            // and killed the guest process before any hook ran. Log loudly
+            // and continue degraded instead.
+            Log.e("TwinSpaceLaunch", "doAttachBaseContext: setEssentialProperties FAILED (continuing degraded): " + e);
             Slog.w(TAG, "Failed to set essential properties: " + e.getMessage());
         }
 
@@ -959,6 +966,9 @@ public class BlackBoxCore extends ClientConfiguration {
         initVpnService();
         
         HookManager.get().init();
+        if (HookManager.get().hasCriticalHookFailed()) {
+            Log.e("TwinSpaceLaunch", "CRITICAL hook failed: " + HookManager.get().getFailedHooks() + " — guest launches may silently abort");
+        }
     }
 
     public void doCreate() {
@@ -1114,8 +1124,10 @@ public class BlackBoxCore extends ClientConfiguration {
             }
         }
 
+        Log.e("TwinSpaceLaunch", "launchApk pkg=" + packageName + " user=" + userId);
         Intent launchIntentForPackage = getBPackageManager().getLaunchIntentForPackage(packageName, userId);
         if (launchIntentForPackage == null) {
+            Log.e("TwinSpaceLaunch", "launchApk: no launch intent for pkg=" + packageName + " user=" + userId + " (not installed for this user?)");
             return false;
         }
         startActivity(launchIntentForPackage, userId);
@@ -1643,18 +1655,45 @@ public class BlackBoxCore extends ClientConfiguration {
             throw new IllegalArgumentException("ClientConfiguration is null!");
         }
 
-        if(!NativeCore.disableHiddenApi()){
+        // TwinSpace: hidden-API exemption, in order of preference. (1) The
+        // current LSPosed bypass (6.2) works on Android 15/16; (2) the
+        // native ART lookup; (3) FreeReflection. Each step is guarded so a
+        // failure here never kills the guest process — it only degrades the
+        // hooks that depend on hidden APIs. The old code called the native
+        // path only, which fails on Android 15/16 (stripped libart.so,
+        // FreeReflection capped at API 34) and left every later reflection
+        // call silently returning null.
+        boolean hiddenApiOk = false;
+        try {
+            hiddenApiOk = HiddenApiBypass.addHiddenApiExemptions("L");
+            Log.e("TwinSpaceLaunch", "hiddenApi bypass=" + hiddenApiOk);
+        } catch (Throwable t) {
+            Log.e("TwinSpaceLaunch", "hiddenApi bypass threw: " + t);
+        }
+        if (!hiddenApiOk && NativeCore.isLoaded()) {
+            try {
+                hiddenApiOk = NativeCore.disableHiddenApi();
+                Log.e("TwinSpaceLaunch", "hiddenApi native=" + hiddenApiOk);
+            } catch (Throwable t) {
+                Log.e("TwinSpaceLaunch", "hiddenApi native threw: " + t);
+            }
+        }
+        if (!hiddenApiOk) {
             try {
                 Reflection.unseal(context);
+                Log.e("TwinSpaceLaunch", "hiddenApi FreeReflection fallback attempted");
             } catch (Throwable t) {
+                Log.e("TwinSpaceLaunch", "hiddenApi FreeReflection fallback failed: " + t);
                 Slog.w(TAG, "Reflection.unseal failed: " + t.getMessage());
             }
         }
 
-        try {
-            NativeCore.disableResourceLoading();
-        } catch (Exception e) {
-            Slog.w(TAG, "Failed to call native resource disabling: " + e.getMessage());
+        if (NativeCore.isLoaded()) {
+            try {
+                NativeCore.disableResourceLoading();
+            } catch (Throwable e) {
+                Slog.w(TAG, "Failed to call native resource disabling: " + e.getMessage());
+            }
         }
         
         
@@ -1673,7 +1712,10 @@ public class BlackBoxCore extends ClientConfiguration {
             } catch (Exception e) {
                 Slog.w(TAG, "Could not access ResourcesManager overlay field: " + e.getMessage());
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // TwinSpace: widened from Exception — an Error here must not
+            // kill the guest process; doAttachBaseContext logs and continues.
+            Log.e("TwinSpaceLaunch", "setEssentialProperties FAILED: " + e);
             Slog.w(TAG, "Failed to set essential properties: " + e.getMessage());
         }
     }
@@ -1696,9 +1738,14 @@ public class BlackBoxCore extends ClientConfiguration {
             
             
             try {
-                NativeCore.init(android.os.Build.VERSION.SDK_INT);
-                Slog.d(TAG, "NativeCore initialized successfully");
-            } catch (Exception e) {
+                if (NativeCore.isLoaded()) {
+                    NativeCore.init(android.os.Build.VERSION.SDK_INT);
+                    Slog.d(TAG, "NativeCore initialized successfully");
+                } else {
+                    Log.e("TwinSpaceLaunch", "NativeCore.init skipped: libblackbox not loaded");
+                }
+            } catch (Throwable e) {
+                Log.e("TwinSpaceLaunch", "NativeCore.init FAILED (continuing degraded): " + e);
                 Slog.w(TAG, "NativeCore initialization failed: " + e.getMessage());
             }
             

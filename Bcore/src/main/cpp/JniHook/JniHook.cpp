@@ -223,12 +223,32 @@ void JniHook::InitJniHook(JNIEnv *env, int api_level) {
     registerNative(env);
     HookEnv.api_level = api_level;
 
+    // TwinSpace: the ArtMethod/ArtField offset scan below walks raw ART
+    // memory with a layout that is only verified up to API 34. On API 35+
+    // (Android 15/16) the layout changed, so a blind scan can read out of
+    // bounds and SIGSEGV the guest process before any Java code runs.
+    // Skip JNI hooking entirely on API 35+ (degraded, but the guest lives)
+    // instead of scanning memory we do not understand.
+    if (api_level >= 35) {
+        ALOGE("TwinSpaceLaunch: JNI hook scan skipped on API %d (ART layout unverified), JNI hooks disabled", api_level);
+        return;
+    }
+
     jclass clazz = env->FindClass("top/niunaijun/jnihook/jni/JniHook");
+    if (clazz == nullptr) {
+        ALOGE("TwinSpaceLaunch: JNI hook init failed, JniHook class not found");
+        return;
+    }
     jmethodID nativeOffsetId = env->GetStaticMethodID(clazz, "nativeOffset", "()V");
     jmethodID nativeOffset2Id = env->GetStaticMethodID(clazz, "nativeOffset2", "()V");
 
     jfieldID nativeOffsetFieldId = env->GetStaticFieldID(clazz, "NATIVE_OFFSET", "I");
     jfieldID nativeOffsetField2Id = env->GetStaticFieldID(clazz, "NATIVE_OFFSET_2", "I");
+    if (nativeOffsetId == nullptr || nativeOffset2Id == nullptr
+            || nativeOffsetFieldId == nullptr || nativeOffsetField2Id == nullptr) {
+        ALOGE("TwinSpaceLaunch: JNI hook init failed, JniHook method/field lookup returned null");
+        return;
+    }
 
     void *nativeOffsetField = GetFieldMethod(env, env->ToReflectedField(clazz, nativeOffsetFieldId,
                                                                         true));

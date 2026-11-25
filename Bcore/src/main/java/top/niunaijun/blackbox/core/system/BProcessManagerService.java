@@ -77,7 +77,12 @@ public class BProcessManagerService implements ISystemService {
             app = new ProcessRecord(info, processName);
             app.uid = Process.myUid();
             app.bpid = bpid;
-            app.buid = BPackageManagerService.get().getAppId(packageName);
+            // TwinSpace: store the FULL virtual UID (userId + appId) — the
+            // same key startProcessLocked() uses to look the map up (line 54).
+            // The old code stored only the bare appId, so onProcessDie() and
+            // killAllByPackageName() never removed dead records for userId>=1
+            // and the next launch reused a dead ProcessRecord.
+            app.buid = buid;
             app.callingBUid = getBUidByPidOrPackageName(callingPid, packageName);
             app.userId = userId;
 
@@ -89,6 +94,7 @@ public class BProcessManagerService implements ISystemService {
             }
             if (!initAppProcessL(app)) {
                 
+                Log.e("TwinSpaceLaunch", "startProcessLocked: initAppProcessL FAILED pkg=" + packageName + " bpid=" + bpid + " buid=" + buid);
                 bProcess.remove(processName);
                 mPidsSelfLocked.remove(app);
                 app = null;

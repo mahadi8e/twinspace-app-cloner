@@ -21,9 +21,25 @@ import top.niunaijun.blackbox.utils.Slog;
 public class NativeCore {
     public static final String TAG = "NativeCore";
 
+    // TwinSpace: true only if libblackbox.so actually loaded. A missing or
+    // broken native lib must never kill the guest process with an
+    // UnsatisfiedLinkError from this static initializer — callers check
+    // isLoaded() and degrade instead (BlackBoxCore, BActivityThread, IOCore).
+    private static boolean sLoaded = false;
+
+    public static boolean isLoaded() {
+        return sLoaded;
+    }
+
     static {
 
-        System.loadLibrary("blackbox");
+        try {
+            System.loadLibrary("blackbox");
+            sLoaded = true;
+        } catch (Throwable t) {
+            Log.e("TwinSpaceLaunch", "NativeCore: libblackbox failed to load, native hooks disabled: " + t);
+            sLoaded = false;
+        }
     }
 
     public static native void init(int apiLevel);

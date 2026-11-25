@@ -3,6 +3,8 @@ package top.niunaijun.blackbox.fake.hook;
 import android.util.Log;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Map;
 
 import top.niunaijun.blackbox.BlackBoxCore;
@@ -99,6 +101,12 @@ public class HookManager {
     private static final HookManager sHookManager = new HookManager();
 
     private final Map<Class<?>, IInjectHook> mInjectors = new HashMap<>();
+
+    // TwinSpace: hooks whose injectHook() threw during injectAll(). A failed
+    // critical hook means the guest launch will silently abort (the stub
+    // ProxyActivity finishes with a null target), so BlackBoxCore checks
+    // this right after init() and logs it loudly.
+    private final Set<String> mFailedHooks = new HashSet<>();
 
     public static HookManager get() {
         return sHookManager;
@@ -228,7 +236,14 @@ public class HookManager {
         IInjectHook iInjectHook = mInjectors.get(clazz);
         if (iInjectHook != null && iInjectHook.isBadEnv()) {
             Log.d(TAG, "checkEnv: " + clazz.getSimpleName() + " is bad env");
-            iInjectHook.injectHook();
+            // TwinSpace: a re-install failure here used to propagate and
+            // kill the caller (ProxyActivity.onCreate / bind). Guard it.
+            try {
+                iInjectHook.injectHook();
+            } catch (Throwable t) {
+                mFailedHooks.add(clazz.getSimpleName());
+                Log.e("TwinSpaceLaunch", "checkEnv re-install FAILED " + clazz.getSimpleName() + ": " + t);
+            }
         }
     }
 
@@ -251,10 +266,19 @@ public class HookManager {
             try {
                 Slog.d(TAG, "hook: " + value);
                 value.injectHook();
-            } catch (Exception e) {
-                Slog.d(TAG, "hook error: " + value);
-                
-                handleHookError(value, e);
+                Log.e("TwinSpaceLaunch", "hook ok " + value.getClass().getSimpleName());
+            } catch (Throwable e) {
+                // TwinSpace: was catch (Exception) + a debug-level log, so a
+                // failed hook (e.g. a hidden-API Error on Android 15/16) was
+                // invisible and the launch proceeded unhooked. Record it and
+                // say so loudly; the launch must not silently proceed as if
+                // hooked (see hasCriticalHookFailed).
+                mFailedHooks.add(value.getClass().getSimpleName());
+                Log.e("TwinSpaceLaunch", "hook FAILED " + value.getClass().getSimpleName() + ": " + e);
+                Slog.e(TAG, "hook error: " + value, e);
+                if (e instanceof Exception) {
+                    handleHookError(value, (Exception) e);
+                }
             }
         }
     }
@@ -313,6 +337,26 @@ public class HookManager {
     }
 
     
+    public boolean hasCriticalHookFailed() {
+        String[] criticalHooks = {
+            "HCallbackProxy",
+            "AppInstrumentation",
+            "IActivityManagerProxy",
+            "IPackageManagerProxy",
+            "IContentProviderProxy"
+        };
+        for (String hookName : criticalHooks) {
+            if (mFailedHooks.contains(hookName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Set<String> getFailedHooks() {
+        return mFailedHooks;
+    }
+
     public void reinitializeHooks() {
         Slog.d(TAG, "Reinitializing all hooks");
         

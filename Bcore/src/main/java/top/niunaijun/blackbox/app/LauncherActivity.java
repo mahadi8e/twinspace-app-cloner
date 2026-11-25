@@ -186,6 +186,7 @@ public class LauncherActivity extends Activity {
                 
                 Slog.d(TAG, "App launch initiated successfully");
             } catch (Exception e) {
+                Log.e("TwinSpaceLaunch", "launchAppAsync FAILED: " + e);
                 Slog.e(TAG, "Error launching app", e);
                 
                 

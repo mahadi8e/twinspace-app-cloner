@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.os.Environment;
 import android.os.Process;
 import android.text.TextUtils;
+import android.util.Log;
 
 import java.io.File;
 import java.util.HashMap;
@@ -49,7 +50,13 @@ public class IOCore {
         if (!redirectFile.exists()) {
             FileUtils.mkdirs(redirectPath);
         }
-        NativeCore.addIORule(origPath, redirectPath);
+        if (NativeCore.isLoaded()) {
+            try {
+                NativeCore.addIORule(origPath, redirectPath);
+            } catch (Throwable t) {
+                Log.e("TwinSpaceLaunch", "IOCore: addIORule FAILED for " + origPath + ": " + t);
+            }
+        }
     }
 
     public void addBlackRedirect(String path) {
@@ -154,7 +161,15 @@ public class IOCore {
         for (String s : blackRule) {
             get().addBlackRedirect(s);
         }
-        NativeCore.enableIO();
+        if (NativeCore.isLoaded()) {
+            try {
+                NativeCore.enableIO();
+            } catch (Throwable t) {
+                Log.e("TwinSpaceLaunch", "IOCore: NativeCore.enableIO FAILED (IO redirect off): " + t);
+            }
+        } else {
+            Log.e("TwinSpaceLaunch", "IOCore: NativeCore.enableIO skipped, libblackbox not loaded (IO redirect off)");
+        }
     }
 
     private void hideRoot(Map<String, String> rule) {

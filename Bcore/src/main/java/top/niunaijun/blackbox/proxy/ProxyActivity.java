@@ -31,10 +31,15 @@ public class ProxyActivity extends Activity {
 
         ProxyActivityRecord record = ProxyActivityRecord.create(getIntent());
         if (record.mTarget != null) {
+            Log.e("TwinSpaceLaunch", "ProxyActivity: relaunching target " + record.mTarget.getComponent());
             record.mTarget.setExtrasClassLoader(BlackBoxCore.getApplication().getClassLoader());
             startActivity(record.mTarget);
             return;
         }
+        // TwinSpace: no target means the H-callback hook never rewrote this
+        // launch (hook install failed) — the stub just finishes and the user
+        // drops back to the launcher with no crash. Log it loudly.
+        Log.e("TwinSpaceLaunch", "ProxyActivity: mTarget NULL — launch was never rewritten (hook absent?), guest aborting silently");
     }
 
     public static class P0 extends ProxyActivity {

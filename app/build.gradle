@@ -17,11 +17,16 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
+        // TwinSpace: ABI splits are OFF on purpose — one single APK for
+        // every phone (Md asked for this, 2026-11-25). The splits used to
+        // build 3 APKs (armeabi-v7a, arm64-v8a, universal); a single APK
+        // is ~23MB instead of ~12MB per split, but there is only one
+        // file to install and it works on all phones.
         splits {
             abi {
-                enable true
+                enable false
                 reset()
-                
+
                 include 'armeabi-v7a', "arm64-v8a"
                 universalApk true
             }

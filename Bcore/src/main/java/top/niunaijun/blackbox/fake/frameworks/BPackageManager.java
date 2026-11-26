@@ -109,7 +109,15 @@ public class BPackageManager extends BlackManager<IBPackageManagerService> {
                     userId);
         }
         if (ris == null || ris.size() <= 0) {
-            return null;
+            // TwinSpace, 2026-11-27: the virtual package manager found no
+            // launcher activity for this package (e.g. Chrome — its launcher
+            // is not resolved by the intent query), so do NOT return null
+            // here. Returning null makes launchApk fail and the user sees
+            // "Launched Failed". Fall back to the host's real launch intent
+            // for the package instead, which the host PackageManager always
+            // resolves correctly.
+            Log.w(TAG, "No launcher activity found for " + packageName + " in virtual PM, using host fallback intent");
+            return createFallbackLaunchIntent(packageName);
         }
         Intent intent = new Intent(intentToResolve);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

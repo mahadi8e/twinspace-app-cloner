@@ -505,22 +505,25 @@ class AppsRepository {
     private fun scanUser() {
         try {
             val blackBoxCore = BlackBoxCore.get()
-            val userList = blackBoxCore.users
-
-            if (userList.isEmpty()) {
-                return
-            }
-
-            val id = userList.last().id
-
-            if (blackBoxCore.getInstalledApplications(0, id).isEmpty()) {
+            // Loop, not recursion: delete trailing empty spaces. Stop when
+            // the last space is non-empty, when there are no spaces, or
+            // when a delete did not actually remove the space. The old
+            // code recursed unconditionally after deleteUser(id), so a
+            // no-op delete (the empty space stays) recursed forever and
+            // threw StackOverflowError.
+            while (true) {
+                val userList = blackBoxCore.users
+                if (userList.isEmpty()) return
+                val id = userList.last().id
+                if (blackBoxCore.getInstalledApplications(0, id).isNotEmpty()) return
+                val before = userList.size
                 blackBoxCore.deleteUser(id)
                 AppManager.mRemarkSharedPreferences.edit().apply {
                     remove("Remark$id")
                     remove("AppList$id")
                     apply()
                 }
-                scanUser()
+                if (blackBoxCore.users.size >= before) return
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in scanUser: ${e.message}")

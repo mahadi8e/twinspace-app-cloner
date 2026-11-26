@@ -110,7 +110,14 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
 
             checkStoragePermission()
 
-            checkVpnPermission()
+            // TwinSpace, 2026-11-27: only ask for VPN permission when the
+            // user actually uses the VPN (left it on). Previously this
+            // prompted on every cold start even when the VPN was off and
+            // never used, so a user who denied once was re-prompted on
+            // the next launch.
+            if (AppManager.mBlackBoxLoader.useVpnNetwork()) {
+                checkVpnPermission()
+            }
 
             // If the user left the USA VPN on, reconnect it now that the app
             // is open, so clones get the USA IP right away. No-ops when the
@@ -524,9 +531,11 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
                     SettingActivity.start(this)
                 }
                 R.id.fake_location -> {
-
+                    // TwinSpace, 2026-11-27: edit the FIRST space, not a
+                    // hardcoded space 0. Space 0 may not exist any more
+                    // (deleted), and then this screen edited nothing.
                     val intent = Intent(this, FakeManagerActivity::class.java)
-                    intent.putExtra("userID", 0)
+                    intent.putExtra("userID", lastRefreshedUserIds.firstOrNull() ?: 0)
                     startActivity(intent)
                 }
             }

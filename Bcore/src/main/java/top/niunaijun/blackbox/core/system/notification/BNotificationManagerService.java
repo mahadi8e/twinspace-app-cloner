@@ -171,7 +171,7 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         ProcessRecord processByPid = BProcessManagerService.get().findProcessByPid(Binder.getCallingPid());
         if (processByPid == null)
             return;
-        int notificationId = getNotificationId(userId, id, processByPid.getPackageName());
+        int notificationId = getNotificationId(userId, id, processByPid.getPackageName(), tag);
 
         if (BuildCompat.isOreo()) {
             NotificationOContext notificationOContext = BRNotificationO.get(notification);
@@ -198,7 +198,7 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         ProcessRecord processByPid = BProcessManagerService.get().findProcessByPid(Binder.getCallingPid());
         if (processByPid == null)
             return;
-        int notificationId = getNotificationId(userId, id, processByPid.getPackageName());
+        int notificationId = getNotificationId(userId, id, processByPid.getPackageName(), tag);
         mRealNotificationManager.cancel(notificationId);
 
         NotificationRecord notificationRecord = getNotificationRecord(processByPid.getPackageName(), userId);
@@ -297,7 +297,15 @@ public class BNotificationManagerService extends IBNotificationManagerService.St
         return groupId.split(GROUP_BLACK)[0];
     }
 
-    public static int getNotificationId(int userId, int notificationId, String packageName) {
-        return (packageName + userId + notificationId).hashCode();
+    /**
+     * TwinSpace, 2026-11-27: the notification tag is part of the id.
+     * The old version hashed only (package + userId + id), so two
+     * notifications with the same id but different tags collapsed to one
+     * forwarded id, and cancel removed the wrong one. Including the tag
+     * keeps same-id/different-tag notifications distinct. (A hash can
+     * still collide in theory, but the tag adds the missing dimension.)
+     */
+    public static int getNotificationId(int userId, int notificationId, String packageName, String tag) {
+        return (packageName + userId + notificationId + "|" + tag).hashCode();
     }
 }

@@ -164,14 +164,6 @@ class ListActivity : BaseActivity() {
         return true
     }
 
-    override fun onStop() {
-        super.onStop()
-        viewModel.loadingLiveData.postValue(true)
-        viewModel.loadingLiveData.removeObservers(this)
-        viewModel.appsLiveData.postValue(null)
-        viewModel.appsLiveData.removeObservers(this)
-    }
-
     companion object {
         fun start(context: Context) {
             val intent = Intent(context, ListActivity::class.java)

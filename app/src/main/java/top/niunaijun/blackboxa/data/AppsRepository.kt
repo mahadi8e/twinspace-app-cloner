@@ -154,7 +154,6 @@ class AppsRepository {
                                                 installedApplication
                                         ), 
                                         installedApplication.packageName,
-                                        installedApplication.sourceDir,
                                         isXpModule,
                                         isSystemApp
                                 )
@@ -190,7 +189,6 @@ class AppsRepository {
                                     it.name,
                                     it.icon, 
                                     it.packageName,
-                                    it.sourceDir,
                                     blackBoxCore.isInstalled(it.packageName, userID),
                                     it.isSystemApp
                             )
@@ -317,7 +315,6 @@ class AppsRepository {
                                     safeLoadAppLabel(applicationInfo),
                                     safeLoadAppIcon(applicationInfo),
                                     applicationInfo.packageName,
-                                    applicationInfo.sourceDir ?: "",
                                     false
                             )
                         } catch (e: Exception) {

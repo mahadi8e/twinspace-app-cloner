@@ -83,6 +83,22 @@ object TwinSpaceVpn {
     }
 
     /**
+     * Validate a WireGuard .conf text before it is saved. Returns null
+     * when the text parses as a usable WireGuard config, or a short
+     * error message when it does not (empty, malformed, or no server).
+     * A wrong config is rejected here so it never gets saved silently.
+     */
+    fun validateConfig(configText: String): String? {
+        if (configText.isBlank()) return "Config is empty"
+        return try {
+            val config = Config.parse(ByteArrayInputStream(configText.toByteArray(Charsets.UTF_8)))
+            if (config.peers.isEmpty()) "No server (Peer) found in the config" else null
+        } catch (e: Exception) {
+            e.message ?: "Invalid config"
+        }
+    }
+
+    /**
      * Returns the .conf text with this app forced into the tunnel. Any
      * IncludedApplications line the user may already have is replaced, so a
      * stale value can never widen the tunnel to other apps.

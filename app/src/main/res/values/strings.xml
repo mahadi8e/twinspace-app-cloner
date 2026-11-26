@@ -71,6 +71,12 @@
     <string name="vpn_started">USA VPN on — clones now use a USA IP and California location</string>
     <string name="vpn_start_failed">Could not start the VPN — check the WireGuard config and try again</string>
     <string name="vpn_stopped">USA VPN off — clones use your normal connection again</string>
+    <string name="vpn_status">VPN status</string>
+    <string name="vpn_status_no_config">Not configured — paste a WireGuard config first</string>
+    <string name="vpn_status_off">Off</string>
+    <string name="vpn_status_connected">Connected (USA)</string>
+    <string name="vpn_status_not_connected">Not connected</string>
+    <string name="vpn_config_invalid">Invalid WireGuard config</string>
     <string name="vpn_prompt_title">USA VPN for this clone?</string>
     <string name="vpn_prompt_message">Turn on the USA VPN for this clone? It will get a USA IP and a California location. You can turn it off anytime in Settings.</string>
     <string name="vpn_prompt_turn_on">Turn on VPN</string>

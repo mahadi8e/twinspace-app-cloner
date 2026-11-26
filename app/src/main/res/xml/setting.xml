@@ -27,6 +27,11 @@
                 app:summary="@string/use_vpn_network_summary" />
 
         <Preference
+                android:key="vpn_status"
+                android:title="@string/vpn_status"
+                android:summary="@string/vpn_status_off" />
+
+        <Preference
                 android:key="vpn_config"
                 android:title="@string/vpn_config"
                 android:summary="@string/vpn_config_summary" />

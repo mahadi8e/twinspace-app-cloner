@@ -23,6 +23,8 @@ class SettingFragment : PreferenceFragmentCompat() {
 
         initVpnConfig()
 
+        initVpnStatus()
+
         invalidHideState {
             val rootHidePreference: Preference = (findPreference("root_hide")!!)
             val hideRoot = AppManager.mBlackBoxLoader.hideRoot()
@@ -88,6 +90,40 @@ class SettingFragment : PreferenceFragmentCompat() {
             else getString(R.string.vpn_config_summary)
     }
 
+    /**
+     * VPN status line in Settings: shows whether the tunnel is really
+     * connected, not just whether the switch is on. Refreshed whenever
+     * the screen opens and after the VPN starts or stops.
+     */
+    private fun initVpnStatus() {
+        val vpnStatusPreference: Preference = (findPreference("vpn_status")!!)
+        updateVpnStatus(vpnStatusPreference)
+    }
+
+    private fun updateVpnStatus(pref: Preference) {
+        val ctx = requireContext()
+        pref.summary = when {
+            !TwinSpaceVpn.hasConfig(ctx) -> getString(R.string.vpn_status_no_config)
+            !AppManager.mBlackBoxLoader.useVpnNetwork() -> getString(R.string.vpn_status_off)
+            TwinSpaceVpn.isRunning -> getString(R.string.vpn_status_connected)
+            else -> getString(R.string.vpn_status_not_connected)
+        }
+    }
+
+    private fun refreshVpnStatus() {
+        try {
+            val pref: Preference? = findPreference("vpn_status")
+            if (pref != null) updateVpnStatus(pref)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error refreshing VPN status: ${e.message}")
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshVpnStatus()
+    }
+
     private fun showVpnConfigDialog(pref: Preference) {
         val ctx = requireContext()
         var text = TwinSpaceVpn.getConfig(ctx) ?: ""
@@ -101,8 +137,25 @@ class SettingFragment : PreferenceFragmentCompat() {
                     allowEmpty = true
                 ) { _, input -> text = input.toString() }
                 positiveButton(R.string.vpn_config_save) {
+                    // Reject a wrong config here with a clear error,
+                    // instead of saving it silently and failing later.
+                    val error = TwinSpaceVpn.validateConfig(text)
+                    if (error != null) {
+                        try {
+                            MaterialDialog(ctx).show {
+                                title(R.string.vpn_config_invalid)
+                                message(text = error)
+                                positiveButton(R.string.done)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error showing VPN config error: ${e.message}")
+                            toast(R.string.vpn_config_invalid)
+                        }
+                        return@positiveButton
+                    }
                     TwinSpaceVpn.saveConfig(ctx, text)
                     updateVpnConfigSummary(pref)
+                    refreshVpnStatus()
                     toast(R.string.vpn_config_saved)
                 }
                 negativeButton(R.string.cancel)
@@ -133,15 +186,30 @@ class SettingFragment : PreferenceFragmentCompat() {
                     showRestartToast = false
                     if (tmpHide) {
                         TwinSpaceVpn.start(requireContext()) { ok, err ->
+                            refreshVpnStatus()
                             when {
                                 ok -> toast(R.string.vpn_started)
                                 err == "no_config" -> toast(R.string.vpn_no_config)
                                 err == "not_authorized" -> toast(R.string.vpn_not_authorized)
-                                else -> toast(R.string.vpn_start_failed)
+                                else -> {
+                                    // Show the real error (e.g. a bad
+                                    // config) instead of a generic toast.
+                                    try {
+                                        MaterialDialog(requireContext()).show {
+                                            title(R.string.vpn_start_failed)
+                                            message(text = err ?: getString(R.string.vpn_start_failed))
+                                            positiveButton(R.string.done)
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error showing VPN start error: ${e.message}")
+                                        toast(R.string.vpn_start_failed)
+                                    }
+                                }
                             }
                         }
                     } else {
                         TwinSpaceVpn.stop(requireContext()) { ok, _ ->
+                            refreshVpnStatus()
                             if (ok) toast(R.string.vpn_stopped)
                         }
                     }

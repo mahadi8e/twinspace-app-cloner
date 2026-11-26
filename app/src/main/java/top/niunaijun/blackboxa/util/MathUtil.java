@@ -1,16 +1,10 @@
 package top.niunaijun.blackboxa.util;
 
 import android.graphics.Point;
-import android.graphics.PointF;
 
 public class MathUtil {
 
     public MathUtil() {
-    }
-
-    
-    public static int getDistance(PointF A, PointF B) {
-        return (int) Math.sqrt(Math.pow(A.x - B.x, 2) + Math.pow(A.y - B.y, 2));
     }
 
     
@@ -32,16 +26,5 @@ public class MathUtil {
         float radian = (float) Math.acos(lenA / lenC);
         radian = radian * (B.y < A.y ? -1 : 1);
         return radian;
-    }
-
-
-    
-    public static double angle2Radian(double angle) {
-        return angle / 180 * Math.PI;
-    }
-
-    
-    public static double radian2Angle(double radian) {
-        return radian / Math.PI * 180;
     }
 }

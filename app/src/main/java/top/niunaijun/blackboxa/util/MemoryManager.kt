@@ -8,23 +8,7 @@ import java.lang.Runtime
 object MemoryManager {
 
     private const val TAG = "MemoryManager"
-    private const val MEMORY_THRESHOLD = 0.8 
     private const val CRITICAL_MEMORY_THRESHOLD = 0.9 
-
-    
-    fun isMemorySafe(): Boolean {
-        return try {
-            val runtime = Runtime.getRuntime()
-            val usedMemory = runtime.totalMemory() - runtime.freeMemory()
-            val maxMemory = runtime.maxMemory()
-            val memoryUsage = usedMemory.toDouble() / maxMemory.toDouble()
-
-            memoryUsage < MEMORY_THRESHOLD
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking memory: ${e.message}")
-            true 
-        }
-    }
 
     
     fun isMemoryCritical(): Boolean {

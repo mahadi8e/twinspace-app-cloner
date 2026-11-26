@@ -21,16 +21,6 @@ object AppManager {
     }
 
     @JvmStatic
-    val mBlackBoxCore by lazy {
-        try {
-            mBlackBoxLoader.getBlackBoxCore()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting BlackBoxCore: ${e.message}")
-            throw e 
-        }
-    }
-
-    @JvmStatic
     val mRemarkSharedPreferences: SharedPreferences by lazy {
         try {
             App.getContext().getSharedPreferences("UserRemark", Context.MODE_PRIVATE)
@@ -57,21 +47,11 @@ object AppManager {
         Log.e("TS_BOOT", "AppManager.doOnCreate start")
         try {
             mBlackBoxLoader.doOnCreate(context)
-            initThirdService(context)
         } catch (e: Throwable) {
             Log.e("TS_BOOT", "AppManager.doOnCreate FAILED: " + e)
             Log.e(TAG, "Error in doOnCreate: ${e.message}")
 
         }
         Log.e("TS_BOOT", "AppManager.doOnCreate done")
-    }
-
-    private fun initThirdService(context: Context) {
-        try {
-            
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in initThirdService: ${e.message}")
-        }
     }
 }

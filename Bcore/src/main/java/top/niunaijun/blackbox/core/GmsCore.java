@@ -128,11 +128,6 @@ public class GmsCore {
         uninstallPackages(GOOGLE_APP, userId);
     }
 
-    public static void remove(String packageName) {
-        GOOGLE_SERVICE.remove(packageName);
-        GOOGLE_APP.remove(packageName);
-    }
-
 
     public static boolean isSupportGms() {
         try {

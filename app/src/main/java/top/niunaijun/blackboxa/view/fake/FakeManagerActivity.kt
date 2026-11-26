@@ -1,11 +1,8 @@
 package top.niunaijun.blackboxa.view.fake
 
-import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
-import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -148,17 +145,6 @@ class FakeManagerActivity : BaseActivity() {
         mAdapter.setItems(newList)
     }
 
-    private fun finishWithResult(source: String) {
-        intent.putExtra("source", source)
-        setResult(Activity.RESULT_OK, intent)
-        val imm: InputMethodManager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-        window.peekDecorView()?.run {
-            imm.hideSoftInputFromWindow(windowToken, 0)
-        }
-        finish()
-    }
-
-
     override fun onBackPressed() {
         if (viewBinding.searchView.isSearchOpen) {
             viewBinding.searchView.closeSearch()
@@ -172,13 +158,5 @@ class FakeManagerActivity : BaseActivity() {
         val item = menu!!.findItem(R.id.list_search)
         viewBinding.searchView.setMenuItem(item)
         return true
-    }
-
-
-    companion object {
-        fun start(context: Context) {
-            val intent = Intent(context, FakeManagerActivity::class.java)
-            context.startActivity(intent)
-        }
     }
 }

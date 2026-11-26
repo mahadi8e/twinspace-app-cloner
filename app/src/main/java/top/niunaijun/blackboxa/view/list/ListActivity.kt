@@ -1,8 +1,6 @@
 package top.niunaijun.blackboxa.view.list
 
 import android.app.Activity
-import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -162,12 +160,5 @@ class ListActivity : BaseActivity() {
         viewBinding.searchView.setMenuItem(item)
 
         return true
-    }
-
-    companion object {
-        fun start(context: Context) {
-            val intent = Intent(context, ListActivity::class.java)
-            context.startActivity(intent)
-        }
     }
 }

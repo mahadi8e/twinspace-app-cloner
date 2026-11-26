@@ -62,7 +62,6 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
     companion object {
         private const val TAG = "MainActivity"
         private const val STORAGE_PERMISSION_REQUEST_CODE = 1001
-        private const val VPN_PERMISSION_REQUEST_CODE = 1002
 
         fun start(context: Context) {
             val intent = Intent(context, MainActivity::class.java)

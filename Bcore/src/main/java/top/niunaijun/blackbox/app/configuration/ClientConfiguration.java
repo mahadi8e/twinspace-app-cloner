@@ -34,11 +34,4 @@ public abstract class ClientConfiguration {
     public boolean requestInstallPackage(File file, int userId) {
         return false;
     }
-
-    
-    public String getLogSenderChatId() {
-        // TwinSpace: no upstream log destination. Returning null disables
-        // BlackBoxCore.sendLogs(), which returns early without a chat id.
-        return null;
-    }
 }

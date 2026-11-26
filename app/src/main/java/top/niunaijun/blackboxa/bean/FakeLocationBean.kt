@@ -11,5 +11,3 @@ data class FakeLocationBean(
     var fakeLocationPattern: Int,
     var fakeLocation: BLocation?
 )
-
-data class FakeLocationBeanInstallBean(val userID: Int, val success: Boolean, val msg: String)

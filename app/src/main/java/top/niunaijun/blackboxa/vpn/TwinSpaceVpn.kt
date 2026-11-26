@@ -48,10 +48,6 @@ object TwinSpaceVpn {
     private const val PREFS_NAME = "TwinSpaceVpn"
     private const val KEY_WG_CONFIG = "wireguard_config"
 
-    /** Los Angeles, California, USA — the default fake location (see TwinSpaceLocation). */
-    const val CALIFORNIA_LATITUDE = 34.0522
-    const val CALIFORNIA_LONGITUDE = -118.2437
-
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile

@@ -181,11 +181,6 @@ object RockerManager {
     }
 
     
-    fun isActive(): Boolean {
-        return isInitialized
-    }
-
-    
     fun checkPermissions(context: Context): Boolean {
         return try {
             

@@ -110,15 +110,6 @@ class BlackBoxLoader {
         }
     }
 
-    fun getBlackBoxCore(): BlackBoxCore {
-        return try {
-            BlackBoxCore.get()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting BlackBoxCore: ${e.message}")
-            throw e
-        }
-    }
-
     fun addLifecycleCallback() {
         try {
             BlackBoxCore.get()

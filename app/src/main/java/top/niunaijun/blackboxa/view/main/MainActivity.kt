@@ -72,6 +72,7 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.e("TS_BOOT", "MainActivity.onCreate start")
 
         // TwinSpace diagnostic: if the previous launch crashed, show the
         // saved report instead of starting normally (the normal start is
@@ -89,10 +90,12 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
         } catch (e: Exception) {
             Log.e(TAG, "Error checking crash report: ${e.message}")
         }
+        Log.e("TS_BOOT", "MainActivity.onCreate reaching initNormal")
         initNormal()
     }
 
     private fun initNormal() {
+        Log.e("TS_BOOT", "MainActivity.initNormal start")
         try {
             try {
                 BlackBoxCore.get().onBeforeMainActivityOnCreate(this)
@@ -127,6 +130,7 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
             } catch (e: Exception) {
                 Log.e(TAG, "Error marking clean launch: ${e.message}")
             }
+            Log.e("TS_BOOT", "MainActivity.initNormal done")
         } catch (e: Exception) {
             Log.e(TAG, "Critical error in onCreate: ${e.message}")
 

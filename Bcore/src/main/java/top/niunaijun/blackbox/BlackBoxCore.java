@@ -832,8 +832,9 @@ public class BlackBoxCore extends ClientConfiguration {
 
     public void doAttachBaseContext(Context context,
                                    ClientConfiguration clientConfiguration) {
+        Log.e("TS_BOOT", "doAttachBaseContext start");
         try {
-            
+
             setEssentialProperties(context, clientConfiguration);
             
             
@@ -964,15 +965,24 @@ public class BlackBoxCore extends ClientConfiguration {
         
         
         initVpnService();
-        
-        HookManager.get().init();
-        if (HookManager.get().hasCriticalHookFailed()) {
-            Log.e("TwinSpaceLaunch", "CRITICAL hook failed: " + HookManager.get().getFailedHooks() + " — guest launches may silently abort");
+
+        // TwinSpace: HookManager.init() was unguarded — a hook constructor
+        // throwing an Error here killed the host process inside
+        // attachBaseContext, before MainActivity, with no Java trace.
+        Log.e("TS_BOOT", "HookManager.init start");
+        try {
+            HookManager.get().init();
+            if (HookManager.get().hasCriticalHookFailed()) {
+                Log.e("TwinSpaceLaunch", "CRITICAL hook failed: " + HookManager.get().getFailedHooks() + " — guest launches may silently abort");
+            }
+        } catch (Throwable t) {
+            Log.e("TS_BOOT", "HookManager.init FAILED (continuing degraded): " + t);
         }
+        Log.e("TS_BOOT", "doAttachBaseContext done");
     }
 
     public void doCreate() {
-        
+        Log.e("TS_BOOT", "doCreate start");
         installSystemHooks();
         
         
@@ -1641,12 +1651,18 @@ public class BlackBoxCore extends ClientConfiguration {
     
     
     public static void installSystemHooks() {
+        Log.e("TS_BOOT", "installSystemHooks start");
         try {
             SimpleCrashFix.installSimpleFix();
             Slog.d(TAG, "System hooks installed successfully");
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // TwinSpace: was Exception-only — an Error from the crash-fix
+            // hooks (e.g. a reflection Error on Android 14/15) escaped
+            // and killed the process before MainActivity. Log and continue.
+            Log.e("TS_BOOT", "installSystemHooks FAILED (continuing): " + e);
             Slog.e(TAG, "Failed to install system hooks", e);
         }
+        Log.e("TS_BOOT", "installSystemHooks done");
     }
     
     
@@ -1663,6 +1679,7 @@ public class BlackBoxCore extends ClientConfiguration {
         // path only, which fails on Android 15/16 (stripped libart.so,
         // FreeReflection capped at API 34) and left every later reflection
         // call silently returning null.
+        Log.e("TS_BOOT", "setEssentialProperties start api=" + Build.VERSION.SDK_INT);
         boolean hiddenApiOk = false;
         try {
             hiddenApiOk = HiddenApiBypass.addHiddenApiExemptions("L");
@@ -1670,14 +1687,21 @@ public class BlackBoxCore extends ClientConfiguration {
         } catch (Throwable t) {
             Log.e("TwinSpaceLaunch", "hiddenApi bypass threw: " + t);
         }
-        if (!hiddenApiOk && NativeCore.isLoaded()) {
+        // TwinSpace: the native ART lookup is a last resort only, and it is
+        // skipped on API >= 34 — the raw function-pointer call into a
+        // stripped libart.so is the prime native-crash suspect on Android
+        // 14/15, and the LSPosed bypass + FreeReflection cover those APIs.
+        if (!hiddenApiOk && NativeCore.isLoaded() && Build.VERSION.SDK_INT < 34) {
             try {
                 hiddenApiOk = NativeCore.disableHiddenApi();
                 Log.e("TwinSpaceLaunch", "hiddenApi native=" + hiddenApiOk);
             } catch (Throwable t) {
                 Log.e("TwinSpaceLaunch", "hiddenApi native threw: " + t);
             }
+        } else if (!hiddenApiOk) {
+            Log.e("TS_BOOT", "hiddenApi native skipped api=" + Build.VERSION.SDK_INT + " loaded=" + NativeCore.isLoaded());
         }
+        Log.e("TS_BOOT", "setEssentialProperties hiddenApi done ok=" + hiddenApiOk);
         if (!hiddenApiOk) {
             try {
                 Reflection.unseal(context);
@@ -1737,6 +1761,7 @@ public class BlackBoxCore extends ClientConfiguration {
             Slog.d(TAG, "Ensuring proper initialization order...");
             
             
+            Log.e("TS_BOOT", "NativeCore.init start loaded=" + NativeCore.isLoaded());
             try {
                 if (NativeCore.isLoaded()) {
                     NativeCore.init(android.os.Build.VERSION.SDK_INT);
@@ -1753,7 +1778,8 @@ public class BlackBoxCore extends ClientConfiguration {
             try {
                 ServiceManager.initBlackManager();
                 Slog.d(TAG, "ServiceManager initialized successfully");
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                Log.e("TS_BOOT", "ServiceManager.init FAILED (continuing): " + e);
                 Slog.w(TAG, "ServiceManager initialization failed: " + e.getMessage());
             }
             
@@ -1761,12 +1787,15 @@ public class BlackBoxCore extends ClientConfiguration {
             try {
                 BActivityThread.hookActivityThread();
                 Slog.d(TAG, "BActivityThread hooks initialized successfully");
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                Log.e("TS_BOOT", "BActivityThread.hook FAILED (continuing): " + e);
                 Slog.w(TAG, "BActivityThread hooks initialization failed: " + e.getMessage());
             }
-            
+
             Slog.d(TAG, "Proper initialization order ensured");
-        } catch (Exception e) {
+            Log.e("TS_BOOT", "ensureProperInitialization done");
+        } catch (Throwable e) {
+            Log.e("TS_BOOT", "ensureProperInitialization FAILED: " + e);
             Slog.e(TAG, "Failed to ensure proper initialization order", e);
         }
     }

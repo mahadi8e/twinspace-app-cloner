@@ -13,6 +13,7 @@ bool disable_hidden_api(JNIEnv *env) {
         return false;
     }
     long android_version = std::strtol(version_str, nullptr, 10);
+    ALOGE("TS_BOOT: disable_hidden_api start api=%ld", android_version);
 
     
     if (android_version < 29) {
@@ -20,10 +21,13 @@ bool disable_hidden_api(JNIEnv *env) {
         return true;
     }
 
-    SandHook::ElfImg *elf_img = new SandHook::ElfImg("libart.so");
-    if (!elf_img->isValid()) {
+    // TwinSpace: stack object (RAII), not new/delete — the old heap
+    // allocation leaked the mapped ELF (buffer + mmap, freed only by the
+    // destructor) on any early return or C++ exception between new and
+    // delete. On the stack the destructor runs on every return path.
+    SandHook::ElfImg elf_img("libart.so");
+    if (!elf_img.isValid()) {
         ALOGE("HiddenAPI: Failed to load libart.so");
-        delete elf_img;
         return false;
     }
 
@@ -37,15 +41,13 @@ bool disable_hidden_api(JNIEnv *env) {
     };
 
     for (int i = 0; symbol_names[i] != nullptr; i++) {
-        addr = (void*)elf_img->getSymbAddress(symbol_names[i]);
+        addr = (void*)elf_img.getSymbAddress(symbol_names[i]);
         if (addr) {
             ALOGD("HiddenAPI: Found symbol %s at %p", symbol_names[i], addr);
             break;
         }
     }
 
-    delete elf_img;
-    
     if (!addr) {
         ALOGE("HiddenAPI: Didn't find setHiddenApiExemptions in any form");
         return false;
@@ -71,7 +73,7 @@ bool disable_hidden_api(JNIEnv *env) {
     }
 
     auto func = reinterpret_cast<void (*)(JNIEnv *, jclass, jobjectArray)>(addr);
-    
+    ALOGE("TS_BOOT: disable_hidden_api calling ART setHiddenApiExemptions at %p", addr);
     func(env, stringClass, args);
     // TwinSpace: the ART call above can throw (e.g. wrong signature on a
     // newer runtime) — check and clear it instead of reporting success.
@@ -80,7 +82,7 @@ bool disable_hidden_api(JNIEnv *env) {
         env->ExceptionClear();
         return false;
     }
-    ALOGD("HiddenAPI: Successfully disabled hidden API restrictions");
+    ALOGE("TS_BOOT: disable_hidden_api done, exemptions applied");
     return true;
 }
 

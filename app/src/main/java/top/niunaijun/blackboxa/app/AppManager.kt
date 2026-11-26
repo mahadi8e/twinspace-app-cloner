@@ -41,23 +41,29 @@ object AppManager {
     }
 
     fun doAttachBaseContext(context: Context) {
+        Log.e("TS_BOOT", "AppManager.doAttachBaseContext start")
         try {
             mBlackBoxLoader.attachBaseContext(context)
             mBlackBoxLoader.addLifecycleCallback()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            Log.e("TS_BOOT", "AppManager.doAttachBaseContext FAILED: " + e)
             Log.e(TAG, "Error in doAttachBaseContext: ${e.message}")
-            
+
         }
+        Log.e("TS_BOOT", "AppManager.doAttachBaseContext done")
     }
 
     fun doOnCreate(context: Context) {
+        Log.e("TS_BOOT", "AppManager.doOnCreate start")
         try {
             mBlackBoxLoader.doOnCreate(context)
             initThirdService(context)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            Log.e("TS_BOOT", "AppManager.doOnCreate FAILED: " + e)
             Log.e(TAG, "Error in doOnCreate: ${e.message}")
-            
+
         }
+        Log.e("TS_BOOT", "AppManager.doOnCreate done")
     }
 
     private fun initThirdService(context: Context) {

@@ -127,6 +127,10 @@ class AppsRepository {
 
                         val isXpModule = false
 
+                        val isSystemApp =
+                                (installedApplication.flags and
+                                        android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+
                         val info =
                                 AppInfo(
                                         safeLoadAppLabel(installedApplication),
@@ -135,7 +139,8 @@ class AppsRepository {
                                         ), 
                                         installedApplication.packageName,
                                         installedApplication.sourceDir,
-                                        isXpModule
+                                        isXpModule,
+                                        isSystemApp
                                 )
                         installedList.add(info)
                     } catch (e: Exception) {
@@ -170,7 +175,8 @@ class AppsRepository {
                                     it.icon, 
                                     it.packageName,
                                     it.sourceDir,
-                                    blackBoxCore.isInstalled(it.packageName, userID)
+                                    blackBoxCore.isInstalled(it.packageName, userID),
+                                    it.isSystemApp
                             )
                         }
                 appsLiveData.postValue(newInstalledList)

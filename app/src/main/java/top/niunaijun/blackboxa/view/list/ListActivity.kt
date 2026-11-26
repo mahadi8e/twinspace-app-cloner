@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import cbfg.rvadapter.RVAdapter
 import com.ferfalk.simplesearchview.SimpleSearchView
+import com.google.android.material.tabs.TabLayout
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.bean.InstalledAppBean
 import top.niunaijun.blackboxa.databinding.ActivityListBinding
@@ -29,6 +30,11 @@ class ListActivity : BaseActivity() {
 
     private var appList: List<InstalledAppBean> = ArrayList()
 
+    // TwinSpace: two sections at the top — Normal Apps (tab 0) and
+    // System Apps (tab 1). The list shows only the selected section.
+    private var showSystemApps = false
+    private var currentQuery = ""
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(viewBinding.root)
@@ -43,7 +49,23 @@ class ListActivity : BaseActivity() {
         viewBinding.recyclerView.layoutManager = LinearLayoutManager(this)
 
         initSearchView()
+        initSectionTabs()
         initViewModel()
+    }
+
+    private fun initSectionTabs() {
+        viewBinding.sectionTabs.addOnTabSelectedListener(
+                object : TabLayout.OnTabSelectedListener {
+                    override fun onTabSelected(tab: TabLayout.Tab?) {
+                        showSystemApps = (tab?.position == 1)
+                        filterApp(currentQuery)
+                    }
+
+                    override fun onTabUnselected(tab: TabLayout.Tab?) {}
+
+                    override fun onTabReselected(tab: TabLayout.Tab?) {}
+                }
+        )
     }
 
     private fun initSearchView() {
@@ -97,9 +119,11 @@ class ListActivity : BaseActivity() {
     }
 
     private fun filterApp(newText: String) {
+        currentQuery = newText
         val newList =
                 this.appList.filter {
-                    it.name.contains(newText, true) or it.packageName.contains(newText, true)
+                    it.isSystemApp == showSystemApps &&
+                            (it.name.contains(newText, true) or it.packageName.contains(newText, true))
                 }
         mAdapter.setItems(newList)
     }

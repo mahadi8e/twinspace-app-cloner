@@ -4,6 +4,8 @@
     <string name="choose">Choose</string>
     <string name="choose_app">Choose App</string>
     <string name="installed_app">Installed App</string>
+    <string name="section_normal_apps">Normal Apps</string>
+    <string name="section_system_apps">System Apps</string>
     <string name="installed_module">Installed Module</string>
     <string name="empty_empty">Empty</string>
     <string name="filter">Filter</string>

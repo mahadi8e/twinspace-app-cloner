@@ -40,24 +40,27 @@ public class GmsCore {
     }
 
     /**
-     * Google service packages that are NOT installed into a space.
-     * These are one-time setup / background helpers and the Play Store
-     * does not need them:
-     * - onetimeinitializer: runs once at first Google setup, then stops.
-     * - configupdater: background config updates for Google services.
-     * - partnersetup: carrier/OEM partner setup.
-     * - feedback: crash/feedback reporting to Google Play.
-     * Google Services Framework (GSF, com.google.android.gsf) is
-     * deliberately NOT in this list: the Play Store uses it for sign-in
-     * and core functions, so removing it would break the Play Store.
+     * The ONLY Google packages installed into a space.
+     * Google services run on just these four; everything else in
+     * GOOGLE_APP / GOOGLE_SERVICE is a helper, a sync adapter, a
+     * backup/partner/setup app or a standalone app, and is NOT added:
+     * - com.android.vending: the Play Store itself.
+     * - com.google.android.gms: Google Play Services, the core.
+     * - com.google.android.gsf: Services Framework; the Play Store
+     *   uses it for sign-in and core functions.
+     * - com.google.android.gsf.login: Google account login service;
+     *   the Play Store signs in through it.
+     * Deliberately NOT installed: Play Games, Wear apps, backup,
+     * backuptransport, configupdater, contacts/calendar sync adapters,
+     * feedback, onetimeinitializer, partnersetup, setupwizard.
      */
-    private static final HashSet<String> SKIP_PACKAGES = new HashSet<>();
+    private static final HashSet<String> ESSENTIAL_PACKAGES = new HashSet<>();
 
     static {
-        SKIP_PACKAGES.add("com.google.android.onetimeinitializer");
-        SKIP_PACKAGES.add("com.google.android.configupdater");
-        SKIP_PACKAGES.add("com.google.android.partnersetup");
-        SKIP_PACKAGES.add("com.google.android.feedback");
+        ESSENTIAL_PACKAGES.add(VENDING_PKG);
+        ESSENTIAL_PACKAGES.add(GMS_PKG);
+        ESSENTIAL_PACKAGES.add(GSF_PKG);
+        ESSENTIAL_PACKAGES.add("com.google.android.gsf.login");
     }
 
     public static boolean isGoogleService(String packageName) {
@@ -71,9 +74,11 @@ public class GmsCore {
     private static InstallResult installPackages(Set<String> list, int userId) {
         BlackBoxCore blackBoxCore = BlackBoxCore.get();
         for (String packageName : list) {
-            // Skip the optional helper packages (see SKIP_PACKAGES): they
-            // only clutter the Space and the Play Store does not need them.
-            if (SKIP_PACKAGES.contains(packageName)) {
+            // Only the essential Google packages are installed (see
+            // ESSENTIAL_PACKAGES). Everything else is skipped so the
+            // Space stays clean and only what Google services need
+            // to run is added.
+            if (!ESSENTIAL_PACKAGES.contains(packageName)) {
                 continue;
             }
             if (blackBoxCore.isInstalled(packageName, userId)) {

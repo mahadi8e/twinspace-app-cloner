@@ -33,6 +33,19 @@ class AppsRepository {
         fun clearIconCache() {
             iconCache.evictAll()
         }
+
+        /**
+         * Google services that are installed in a Space but hidden from
+         * the Space grid. They stay installed (the Play Store uses them
+         * for sign-in), they just don't show as app icons.
+         * - com.google.android.gsf: Services Framework.
+         * - com.google.android.gsf.login: Google account login service.
+         * Play Store and Play Services are NOT hidden.
+         */
+        private val HIDDEN_PACKAGES = setOf(
+                "com.google.android.gsf",
+                "com.google.android.gsf.login"
+        )
     }
 
     
@@ -300,6 +313,12 @@ class AppsRepository {
                                 TAG,
                                 "getVmInstallList: Skipping app with null/blank package name at index $index"
                         )
+                        return@forEachIndexed
+                    }
+
+                    // Hidden Google services (see HIDDEN_PACKAGES): they are
+                    // installed in the Space but never shown in the grid.
+                    if (HIDDEN_PACKAGES.contains(applicationInfo.packageName)) {
                         return@forEachIndexed
                     }
 

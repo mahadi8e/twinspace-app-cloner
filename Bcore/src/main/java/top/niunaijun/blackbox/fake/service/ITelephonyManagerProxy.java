@@ -128,9 +128,15 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             if (BLocationManager.isFakeLocationEnable()) {
-                List<BCell> cell = BLocationManager.get().getAllCell(BActivityThread.getUserId(), BActivityThread.getAppPackageName());
-                
-                return cell;
+                // TwinSpace, 2026-11-27: NEVER return List<BCell> here.
+                // BCell is a plain Parcelable, not a CellInfo, so a guest
+                // iterating the result threw ClassCastException. Returning
+                // null is contract-valid (TelephonyManager.getAllCellInfo()
+                // may return null) and matches getNeighboringCellInfo
+                // below. The fake operator/country is still reported via
+                // the VirtualSpoof system properties and
+                // getNetworkCountryIsoForPhone.
+                return null;
             }
             try {
                 return method.invoke(who, args);
@@ -156,9 +162,9 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
             // Report the USA as the network country, matching the USA VPN
             // and the fake location (default California). This is the one
             // operator/country value served by the telephony binder, so it
-            // can be overridden here. The SIM operator name/number itself
-            // comes from system properties (gsm.sim.operator.*) and cannot
-            // be spoofed from this proxy, so it still shows the real one.
+            // can be overridden here. The SIM operator name/number is
+            // spoofed separately via VirtualSpoof system properties
+            // (gsm.sim.operator.* / gsm.operator.* -> T-Mobile, 310260).
             return "us";
         }
     }

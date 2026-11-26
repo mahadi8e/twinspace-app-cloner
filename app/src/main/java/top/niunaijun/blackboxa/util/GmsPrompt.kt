@@ -7,6 +7,7 @@ import android.util.Log
 import com.afollestad.materialdialogs.MaterialDialog
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.R
+import top.niunaijun.blackboxa.location.TwinSpaceLocation
 
 /**
  * Clone-time Google services prompt (TwinSpace addition, 2026-11-19).
@@ -98,7 +99,7 @@ object GmsPrompt {
             MaterialDialog(activity).show {
                 title(R.string.gms_prompt_title)
                 message(R.string.gms_prompt_message)
-                positiveButton(R.string.gms_prompt_install) { installGms(userId, onGmsInstalled) }
+                positiveButton(R.string.gms_prompt_install) { installGms(activity, userId, onGmsInstalled) }
                 negativeButton(R.string.gms_prompt_not_now)
             }
         } catch (e: Exception) {
@@ -106,7 +107,7 @@ object GmsPrompt {
         }
     }
 
-    private fun installGms(userId: Int, onGmsInstalled: (() -> Unit)?) {
+    private fun installGms(activity: Activity, userId: Int, onGmsInstalled: (() -> Unit)?) {
         toast(R.string.gms_installing)
         Thread {
             val result =
@@ -121,6 +122,10 @@ object GmsPrompt {
                     result == null -> toast(R.string.install_fail_no_msg)
                     result.success -> {
                         toast(R.string.install_success)
+                        // The newly installed Google apps would otherwise
+                        // stay on "Real Location". Give them the global
+                        // fake location (only when it is turned on).
+                        TwinSpaceLocation.applyLocationIfEnabled(activity)
                         // Refresh the Space grid live so the newly installed
                         // Google apps (Play Store, Play Services, ...) show
                         // immediately, without leaving and re-entering.

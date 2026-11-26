@@ -8,6 +8,7 @@ import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.bean.GmsBean
 import top.niunaijun.blackboxa.bean.GmsInstallBean
+import top.niunaijun.blackboxa.location.TwinSpaceLocation
 import top.niunaijun.blackboxa.util.getString
 
 
@@ -77,6 +78,13 @@ class GmsRepository {
         mUpdateInstalledLiveData: MutableLiveData<GmsInstallBean>
     ) {
         val installResult = BlackBoxCore.get().installGms(userID)
+
+        if (installResult.success) {
+            // The newly installed Google apps would otherwise stay on
+            // "Real Location". Give them the global fake location (only
+            // when it is turned on).
+            TwinSpaceLocation.applyLocationIfEnabled(BlackBoxCore.getContext())
+        }
 
         val result = if (installResult.success) {
             getString(R.string.install_success)

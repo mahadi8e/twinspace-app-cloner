@@ -179,6 +179,18 @@ object TwinSpaceLocation {
         }.start()
     }
 
+    /**
+     * Apply the stored global fake location to every clone, but only when
+     * fake location is turned on. Call this after installing new apps
+     * (e.g. Google services) so they pick up the global location instead
+     * of staying on "Real Location". Safe to call from any thread.
+     */
+    fun applyLocationIfEnabled(context: Context) {
+        if (isEnabled(context)) {
+            applyLocation(context)
+        }
+    }
+
     /** Switch every clone back to its real location (fake location off). */
     fun clearLocation() {
         Thread {

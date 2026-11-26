@@ -89,14 +89,20 @@ class App : Application() {
                     Log.e("App", "Error checking crash report: ${e.message}")
                 }
             } else if (base != null) {
-                // Guest (clone) process only: set the timezone to the fake
-                // location's timezone, so the clone shows that place's
-                // local time. The host app keeps the real device timezone.
-                // Applies when the clone (re)launches.
+                // Guest (clone) process only: set the timezone and the
+                // region (locale) to the fake location's, so the clone
+                // shows that place's local time and region. The host app
+                // keeps the real device timezone and locale. Applies
+                // when the clone (re)launches.
                 try {
                     TwinSpaceLocation.applyGuestTimezone(base)
                 } catch (e: Throwable) {
                     Log.e("App", "Error applying guest timezone: ${e.message}")
+                }
+                try {
+                    TwinSpaceLocation.applyGuestLocale(base)
+                } catch (e: Throwable) {
+                    Log.e("App", "Error applying guest locale: ${e.message}")
                 }
             }
 

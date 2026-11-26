@@ -173,7 +173,7 @@ class SettingFragment : PreferenceFragmentCompat() {
                     when {
                         index < presets.size -> {
                             val preset = presets[index]
-                            TwinSpaceLocation.setLocation(ctx, preset.latitude, preset.longitude, preset.name, preset.timezone)
+                            TwinSpaceLocation.setLocation(ctx, preset.latitude, preset.longitude, preset.name, preset.timezone, preset.country)
                             updateFakeLocationSummary(pref)
                             toast(getString(R.string.fake_location_set, preset.name))
                         }
@@ -217,7 +217,9 @@ class SettingFragment : PreferenceFragmentCompat() {
                     ) {
                         val name = "$lat, $lng"
                         val timezone = TwinSpaceLocation.timezoneForLongitude(lng)
-                        TwinSpaceLocation.setLocation(ctx, lat, lng, name, timezone)
+                        // Custom coordinates cannot reliably tell the
+                        // country, so the region defaults to US.
+                        TwinSpaceLocation.setLocation(ctx, lat, lng, name, timezone, TwinSpaceLocation.DEFAULT_COUNTRY)
                         updateFakeLocationSummary(pref)
                         toast(getString(R.string.fake_location_set, name))
                     } else {

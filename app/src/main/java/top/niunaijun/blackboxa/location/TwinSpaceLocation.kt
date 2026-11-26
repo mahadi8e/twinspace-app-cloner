@@ -2,6 +2,7 @@ package top.niunaijun.blackboxa.location
 
 import android.content.Context
 import android.util.Log
+import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.roundToInt
 import top.niunaijun.blackbox.BlackBoxCore
@@ -43,32 +44,35 @@ object TwinSpaceLocation {
     private const val KEY_LONGITUDE = "longitude"
     private const val KEY_NAME = "name"
     private const val KEY_TIMEZONE = "timezone"
+    private const val KEY_COUNTRY = "country"
 
     /** Default location: Los Angeles, California, USA. */
     const val DEFAULT_LATITUDE = 34.0522
     const val DEFAULT_LONGITUDE = -118.2437
     const val DEFAULT_NAME = "Los Angeles, California, USA"
     const val DEFAULT_TIMEZONE = "America/Los_Angeles"
+    const val DEFAULT_COUNTRY = "US"
 
-    /** One preset place: name, coordinates, and its timezone ID. */
+    /** One preset place: name, coordinates, timezone ID, and country code. */
     data class Preset(
         val name: String,
         val latitude: Double,
         val longitude: Double,
-        val timezone: String
+        val timezone: String,
+        val country: String
     )
 
     /** Preset places the user can pick from. */
     val PRESETS: List<Preset> = listOf(
-        Preset("Los Angeles, California, USA", 34.0522, -118.2437, "America/Los_Angeles"),
-        Preset("New York, USA", 40.7128, -74.0060, "America/New_York"),
-        Preset("London, UK", 51.5074, -0.1278, "Europe/London"),
-        Preset("Paris, France", 48.8566, 2.3522, "Europe/Paris"),
-        Preset("Berlin, Germany", 52.5200, 13.4050, "Europe/Berlin"),
-        Preset("Tokyo, Japan", 35.6762, 139.6503, "Asia/Tokyo"),
-        Preset("Singapore", 1.3521, 103.8198, "Asia/Singapore"),
-        Preset("Sydney, Australia", -33.8688, 151.2093, "Australia/Sydney"),
-        Preset("Dubai, UAE", 25.2048, 55.2708, "Asia/Dubai")
+        Preset("Los Angeles, California, USA", 34.0522, -118.2437, "America/Los_Angeles", "US"),
+        Preset("New York, USA", 40.7128, -74.0060, "America/New_York", "US"),
+        Preset("London, UK", 51.5074, -0.1278, "Europe/London", "GB"),
+        Preset("Paris, France", 48.8566, 2.3522, "Europe/Paris", "FR"),
+        Preset("Berlin, Germany", 52.5200, 13.4050, "Europe/Berlin", "DE"),
+        Preset("Tokyo, Japan", 35.6762, 139.6503, "Asia/Tokyo", "JP"),
+        Preset("Singapore", 1.3521, 103.8198, "Asia/Singapore", "SG"),
+        Preset("Sydney, Australia", -33.8688, 151.2093, "Australia/Sydney", "AU"),
+        Preset("Dubai, UAE", 25.2048, 55.2708, "Asia/Dubai", "AE")
     )
 
     private fun prefs(context: Context) =
@@ -89,6 +93,9 @@ object TwinSpaceLocation {
     fun getTimezone(context: Context): String =
         prefs(context).getString(KEY_TIMEZONE, DEFAULT_TIMEZONE) ?: DEFAULT_TIMEZONE
 
+    fun getCountry(context: Context): String =
+        prefs(context).getString(KEY_COUNTRY, DEFAULT_COUNTRY) ?: DEFAULT_COUNTRY
+
     /**
      * Approximate a timezone from a longitude (for custom coordinates).
      * The UTC offset is longitude / 15 hours, rounded to the nearest
@@ -105,15 +112,16 @@ object TwinSpaceLocation {
     }
 
     /** Save a new location, turn fake location on, and apply it to all clones. */
-    fun setLocation(context: Context, latitude: Double, longitude: Double, name: String, timezone: String) {
+    fun setLocation(context: Context, latitude: Double, longitude: Double, name: String, timezone: String, country: String) {
         prefs(context).edit()
             .putBoolean(KEY_ENABLED, true)
             .putFloat(KEY_LATITUDE, latitude.toFloat())
             .putFloat(KEY_LONGITUDE, longitude.toFloat())
             .putString(KEY_NAME, name)
             .putString(KEY_TIMEZONE, timezone)
+            .putString(KEY_COUNTRY, country)
             .apply()
-        Log.d(TAG, "Location set to $name ($latitude, $longitude) timezone $timezone")
+        Log.d(TAG, "Location set to $name ($latitude, $longitude) timezone $timezone country $country")
         applyLocation(context.applicationContext)
     }
 
@@ -210,6 +218,28 @@ object TwinSpaceLocation {
             Log.d(TAG, "Guest timezone set to $tzId")
         } catch (e: Exception) {
             Log.e(TAG, "Error setting guest timezone: ${e.message}")
+        }
+    }
+
+    /**
+     * Set this process's default locale to the fake location's region
+     * (English + the location's country code, e.g. en_US for California).
+     * Called from App.attachBaseContext in guest (clone) processes only —
+     * the host app keeps the real device locale. Apps that read the
+     * device region (Locale.getDefault().getCountry()) see the fake
+     * location's country. When fake location is off, nothing is changed.
+     * Applies when the clone (re)launches, like the timezone.
+     * Note: the SIM country (getSimCountryIso) still comes from system
+     * properties and cannot be spoofed from here — it stays real.
+     */
+    fun applyGuestLocale(context: Context) {
+        try {
+            if (!isEnabled(context)) return
+            val country = getCountry(context)
+            Locale.setDefault(Locale("en", country))
+            Log.d(TAG, "Guest locale set to en_$country")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting guest locale: ${e.message}")
         }
     }
 }

@@ -36,6 +36,11 @@
                 android:title="@string/vpn_config"
                 android:summary="@string/vpn_config_summary" />
 
+        <Preference
+                android:key="fake_location"
+                android:title="@string/fake_location"
+                android:summary="@string/fake_location_summary" />
+
         <SwitchPreferenceCompat
                 app:key="disable_flag_secure"
                 app:title="@string/disable_flag_secure"

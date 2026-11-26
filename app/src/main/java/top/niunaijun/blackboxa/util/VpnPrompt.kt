@@ -7,17 +7,18 @@ import android.util.Log
 import com.afollestad.materialdialogs.MaterialDialog
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
+import top.niunaijun.blackboxa.location.TwinSpaceLocation
 import top.niunaijun.blackboxa.vpn.TwinSpaceVpn
 
 /**
  * Clone-time USA VPN prompt (TwinSpace addition, 2026-11-25).
  *
  * Mirrors [GmsPrompt]: after an app is cloned, it offers to turn the USA VPN
- * on for the clone (USA IP + California location). Nothing is ever turned on
- * without the user tapping "Turn on VPN".
+ * on for the clone (USA IP + the location from the Location setting).
+ * Nothing is ever turned on without the user tapping "Turn on VPN".
  *
  * If the VPN is already on, there is no dialog — the new clone simply gets
- * the California location, like every other clone.
+ * the location from the Location setting, like every other clone.
  */
 object VpnPrompt {
 
@@ -30,7 +31,7 @@ object VpnPrompt {
      */
     fun maybePrompt(activity: Activity, userId: Int, clonedPackage: String) {
         if (AppManager.mBlackBoxLoader.useVpnNetwork()) {
-            TwinSpaceVpn.applyCaliforniaLocationTo(userId, clonedPackage)
+            TwinSpaceLocation.applyLocationTo(activity, userId, clonedPackage)
             return
         }
         mainHandler.post { showPrompt(activity, userId, clonedPackage) }
@@ -54,7 +55,7 @@ object VpnPrompt {
 
     private fun turnOn(activity: Activity, userId: Int, clonedPackage: String) {
         AppManager.mBlackBoxLoader.invalidUseVpnNetwork(true)
-        TwinSpaceVpn.applyCaliforniaLocationTo(userId, clonedPackage)
+        TwinSpaceLocation.applyLocationTo(activity, userId, clonedPackage)
         if (!TwinSpaceVpn.hasConfig(activity)) {
             toast(R.string.vpn_no_config)
             return

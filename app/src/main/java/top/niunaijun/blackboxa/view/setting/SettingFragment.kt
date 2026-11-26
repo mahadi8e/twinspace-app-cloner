@@ -7,9 +7,11 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.input.input
+import com.afollestad.materialdialogs.list.listSingleChoice
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
+import top.niunaijun.blackboxa.location.TwinSpaceLocation
 import top.niunaijun.blackboxa.util.toast
 import top.niunaijun.blackboxa.view.gms.GmsManagerActivity
 import top.niunaijun.blackboxa.vpn.TwinSpaceVpn
@@ -24,6 +26,8 @@ class SettingFragment : PreferenceFragmentCompat() {
         initVpnConfig()
 
         initVpnStatus()
+
+        initFakeLocation()
 
         invalidHideState {
             val rootHidePreference: Preference = (findPreference("root_hide")!!)
@@ -119,9 +123,126 @@ class SettingFragment : PreferenceFragmentCompat() {
         }
     }
 
+    /**
+     * Fake location, separate from the VPN: the user picks a place here
+     * (a preset city or custom coordinates) and every clone gets it.
+     * Turning the VPN on or off no longer changes the location.
+     */
+    private fun initFakeLocation() {
+        val fakeLocationPreference: Preference = (findPreference("fake_location")!!)
+        updateFakeLocationSummary(fakeLocationPreference)
+        fakeLocationPreference.setOnPreferenceClickListener {
+            showFakeLocationDialog(fakeLocationPreference)
+            true
+        }
+    }
+
+    private fun updateFakeLocationSummary(pref: Preference) {
+        val ctx = requireContext()
+        pref.summary = if (TwinSpaceLocation.isEnabled(ctx)) {
+            TwinSpaceLocation.getName(ctx)
+        } else {
+            getString(R.string.fake_location_off)
+        }
+    }
+
+    private fun refreshFakeLocation() {
+        try {
+            val pref: Preference? = findPreference("fake_location")
+            if (pref != null) updateFakeLocationSummary(pref)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error refreshing fake location: ${e.message}")
+        }
+    }
+
+    private fun showFakeLocationDialog(pref: Preference) {
+        val ctx = requireContext()
+        val presets = TwinSpaceLocation.PRESETS
+        val items = presets.map { it.first } +
+            getString(R.string.fake_location_custom) +
+            getString(R.string.fake_location_off)
+        val currentIndex = if (TwinSpaceLocation.isEnabled(ctx)) {
+            presets.indexOfFirst { it.first == TwinSpaceLocation.getName(ctx) }
+        } else {
+            -1
+        }
+        try {
+            MaterialDialog(ctx).show {
+                title(R.string.fake_location_title)
+                listSingleChoice(items = items, initialSelection = currentIndex) { _, index, _ ->
+                    when {
+                        index < presets.size -> {
+                            val (name, lat, lng) = presets[index]
+                            TwinSpaceLocation.setLocation(ctx, lat, lng, name)
+                            updateFakeLocationSummary(pref)
+                            toast(getString(R.string.fake_location_set, name))
+                        }
+                        index == presets.size -> {
+                            showCustomLocationDialog(pref)
+                        }
+                        else -> {
+                            TwinSpaceLocation.setEnabled(ctx, false)
+                            updateFakeLocationSummary(pref)
+                            toast(R.string.fake_location_turned_off)
+                        }
+                    }
+                }
+                positiveButton(R.string.done)
+                negativeButton(R.string.cancel)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing fake location dialog: ${e.message}")
+        }
+    }
+
+    /** Custom coordinates: the user types "latitude, longitude". */
+    private fun showCustomLocationDialog(pref: Preference) {
+        val ctx = requireContext()
+        var text = ""
+        try {
+            MaterialDialog(ctx).show {
+                title(R.string.fake_location_custom)
+                message(R.string.fake_location_custom_hint)
+                input(
+                    prefill = text,
+                    inputType = InputType.TYPE_CLASS_TEXT,
+                    allowEmpty = false
+                ) { _, input -> text = input.toString() }
+                positiveButton(R.string.done) {
+                    val parts = text.split(",").map { it.trim() }
+                    val lat = parts.getOrNull(0)?.toDoubleOrNull()
+                    val lng = parts.getOrNull(1)?.toDoubleOrNull()
+                    if (parts.size == 2 && lat != null && lng != null &&
+                        lat in -90.0..90.0 && lng in -180.0..180.0
+                    ) {
+                        val name = "$lat, $lng"
+                        TwinSpaceLocation.setLocation(ctx, lat, lng, name)
+                        updateFakeLocationSummary(pref)
+                        toast(getString(R.string.fake_location_set, name))
+                    } else {
+                        try {
+                            MaterialDialog(ctx).show {
+                                title(R.string.fake_location_custom)
+                                message(R.string.fake_location_invalid)
+                                positiveButton(R.string.done)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error showing location error: ${e.message}")
+                            toast(R.string.fake_location_invalid)
+                        }
+                    }
+                }
+                negativeButton(R.string.cancel)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing custom location dialog: ${e.message}")
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         refreshVpnStatus()
+        refreshFakeLocation()
     }
 
     private fun showVpnConfigDialog(pref: Preference) {

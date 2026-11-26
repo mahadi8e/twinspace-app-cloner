@@ -10,11 +10,8 @@ import com.wireguard.android.backend.GoBackend
 import com.wireguard.android.backend.Tunnel
 import com.wireguard.config.Config
 import java.io.ByteArrayInputStream
-import top.niunaijun.blackbox.BlackBoxCore
-import top.niunaijun.blackbox.entity.location.BLocation
-import top.niunaijun.blackbox.fake.frameworks.BLocationManager
 import top.niunaijun.blackboxa.app.AppManager
-import top.niunaijun.blackboxa.data.FakeLocationRepository
+import top.niunaijun.blackboxa.location.TwinSpaceLocation
 
 /**
  * TwinSpace USA VPN (WireGuard) + California location (TwinSpace addition, 2026-11-25).
@@ -33,10 +30,11 @@ import top.niunaijun.blackboxa.data.FakeLocationRepository
  * routed through the VPN, and turning the VPN off leaves every other app
  * untouched.
  *
- * Location: while the VPN is on, every clone gets a fixed fake location in
- * California, USA (Los Angeles). It is set once and stored by the engine
- * (BLocationManagerService.save), so it survives app restarts; turning the
- * VPN off switches the clones back to their real location (CLOSE_MODE).
+ * Location: a separate setting now (TwinSpaceLocation, 2026-11-26). The
+ * user picks a location there (default: Los Angeles, California, USA)
+ * and every clone gets it; turning the VPN on applies that location,
+ * and turning the VPN off no longer resets it — the location is
+ * controlled only from the Location setting, not by the VPN.
  *
  * The WireGuard .conf itself is the user's own: a free Proton VPN account
  * (Downloads -> WireGuard configuration -> USA server) produces it, and the
@@ -50,7 +48,7 @@ object TwinSpaceVpn {
     private const val PREFS_NAME = "TwinSpaceVpn"
     private const val KEY_WG_CONFIG = "wireguard_config"
 
-    /** Los Angeles, California, USA — the fixed fake location for all clones while VPN is on. */
+    /** Los Angeles, California, USA — the default fake location (see TwinSpaceLocation). */
     const val CALIFORNIA_LATITUDE = 34.0522
     const val CALIFORNIA_LONGITUDE = -118.2437
 
@@ -151,7 +149,9 @@ object TwinSpaceVpn {
             be.setState(t, Tunnel.State.UP, config)
             isRunning = true
             Log.d(TAG, "USA VPN tunnel is up")
-            applyCaliforniaLocation()
+            // Location is a separate setting now (TwinSpaceLocation) —
+            // apply the user's chosen location, not a forced California.
+            TwinSpaceLocation.applyLocation(context)
             true to null
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start VPN: ${e.message}")
@@ -171,14 +171,14 @@ object TwinSpaceVpn {
         val t = tunnel
         if (be == null || t == null || !isRunning) {
             isRunning = false
-            clearCaliforniaLocation()
             return true to null
         }
         return try {
             be.setState(t, Tunnel.State.DOWN, null)
             isRunning = false
             Log.d(TAG, "USA VPN tunnel is down")
-            clearCaliforniaLocation()
+            // Location is a separate setting now (TwinSpaceLocation) —
+            // turning the VPN off no longer resets the clones' location.
             true to null
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop VPN: ${e.message}")
@@ -207,69 +207,8 @@ object TwinSpaceVpn {
     }
 
     // ------------------------------------------------------------------
-    // California location for clones
+    // Location is a separate setting now (TwinSpaceLocation). The VPN no
+    // longer forces California on start or clears it on stop — the
+    // user's chosen location applies, and stays, independent of VPN.
     // ------------------------------------------------------------------
-
-    /** Give one clone (space [userId], package [pkg]) the California location. */
-    fun applyCaliforniaLocationTo(userId: Int, pkg: String) {
-        Thread {
-            try {
-                val repo = FakeLocationRepository()
-                repo.setPattern(userId, pkg, BLocationManager.OWN_MODE)
-                repo.setLocation(userId, pkg, BLocation(CALIFORNIA_LATITUDE, CALIFORNIA_LONGITUDE))
-                Log.d(TAG, "California location set for $pkg (user $userId)")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error setting California location for $pkg: ${e.message}")
-            }
-        }.start()
-    }
-
-    /** Give every clone in every space the California location (VPN turned on). */
-    fun applyCaliforniaLocation() {
-        Thread {
-            try {
-                val repo = FakeLocationRepository()
-                val core = BlackBoxCore.get()
-                for (user in core.users) {
-                    val userId = user.id
-                    for (app in core.getInstalledApplications(0, userId)) {
-                        try {
-                            repo.setPattern(userId, app.packageName, BLocationManager.OWN_MODE)
-                            repo.setLocation(
-                                userId,
-                                app.packageName,
-                                BLocation(CALIFORNIA_LATITUDE, CALIFORNIA_LONGITUDE)
-                            )
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error setting location for ${app.packageName}: ${e.message}")
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error applying California location: ${e.message}")
-            }
-        }.start()
-    }
-
-    /** Switch every clone back to its real location (VPN turned off). */
-    fun clearCaliforniaLocation() {
-        Thread {
-            try {
-                val repo = FakeLocationRepository()
-                val core = BlackBoxCore.get()
-                for (user in core.users) {
-                    val userId = user.id
-                    for (app in core.getInstalledApplications(0, userId)) {
-                        try {
-                            repo.setPattern(userId, app.packageName, BLocationManager.CLOSE_MODE)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error clearing location for ${app.packageName}: ${e.message}")
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error clearing California location: ${e.message}")
-            }
-        }.start()
-    }
 }

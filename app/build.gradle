@@ -105,7 +105,10 @@ dependencies {
     
     implementation 'com.afollestad.material-dialogs:core:3.3.0'
     implementation 'com.afollestad.material-dialogs:input:3.3.0'
-    implementation 'com.afollestad.material-dialogs:list:3.3.0'
+    // NOTE: there is NO separate material-dialogs:list artifact — the
+    // list picker (listSingleChoice) is already inside core:3.3.0, so
+    // no extra dependency is needed. Adding list:3.3.0 breaks the
+    // build (artifact does not exist on Maven Central).
 
 
 

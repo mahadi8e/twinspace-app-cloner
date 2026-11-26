@@ -531,18 +531,21 @@
             android:excludeFromRecents="true"
             android:theme="@style/LauncherTheme" />
 
+        <!-- TwinSpace, 2026-11-27: DISABLED on purpose. ProxyVpnService
+             opened a TUN (route 0.0.0.0/0) and never forwarded a packet, so
+             any guest app that established a VPN silently lost all network
+             traffic. The establishVpn rewrite that bound guests to this
+             stub is also removed (VpnCommonProxy). TwinSpace's own VPN is
+             the host WireGuard tunnel (TwinSpaceVpn), unrelated to this. -->
         <service
             android:name="top.niunaijun.blackbox.proxy.ProxyVpnService"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:foregroundServiceType="specialUse">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
-            <meta-data
-                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
-                android:value="true" />
         </service>
 
 

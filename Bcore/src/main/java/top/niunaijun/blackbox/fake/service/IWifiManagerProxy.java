@@ -5,6 +5,7 @@ import android.net.wifi.WifiInfo;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 
 import black.android.net.wifi.BRIWifiManagerStub;
 import black.android.net.wifi.BRWifiInfo;
@@ -67,6 +68,19 @@ public class IWifiManagerProxy extends BinderInvocationStub {
                 rs = rs | intSlice;
             }
             return rs;
+        }
+    }
+
+    @ProxyMethod("getScanResults")
+    public static class GetScanResults extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            // TwinSpace: block nearby Wi-Fi scanning in clones. Return no
+            // networks, so the real Wi-Fi networks around the phone (which
+            // reveal its real location) cannot be seen or used to locate
+            // the clone. The connected Wi-Fi is already faked
+            // (BlackBox_Wifi) by GetConnectionInfo above.
+            return new ArrayList<>();
         }
     }
 }

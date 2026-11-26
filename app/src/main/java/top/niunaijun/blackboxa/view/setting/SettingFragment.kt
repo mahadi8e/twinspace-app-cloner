@@ -7,7 +7,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.input.input
-import com.afollestad.materialdialogs.list.listSingleChoice
+import com.afollestad.materialdialogs.list.listItemsSingleChoice
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
@@ -169,7 +169,7 @@ class SettingFragment : PreferenceFragmentCompat() {
         try {
             MaterialDialog(ctx).show {
                 title(R.string.fake_location_title)
-                listSingleChoice(items = items, initialSelection = currentIndex) { _, index, _ ->
+                listItemsSingleChoice(items = items, initialSelection = currentIndex) { _, index, _ ->
                     when {
                         index < presets.size -> {
                             val preset = presets[index]

@@ -64,6 +64,21 @@ object TwinSpaceVpn {
     @Volatile
     private var tunnel: Tunnel? = null
 
+    /**
+     * TwinSpace, 2026-11-27: serialises start/stop. isRunning/backend/
+     * tunnel are @Volatile, but that only makes single reads/writes atomic —
+     * the check-then-act in startBlocking/stopBlocking was not. Two
+     * concurrent starts could both pass the isRunning check and create two
+     * GoBackends (the second overwriting the first), and a stop racing an
+     * in-flight start could see isRunning == false, report success, and
+     * leave the tunnel up while the UI said stopped. One lock for both
+     * directions fixes both. onStateChange (below) is deliberately NOT
+     * locked: GoBackend calls it from its own thread, and startBlocking
+     * calls into the backend while holding this lock — locking there too
+     * could deadlock. It only reflects the backend's actual state.
+     */
+    private val stateLock = Any()
+
     // ------------------------------------------------------------------
     // WireGuard .conf storage (the user's own Proton USA config)
     // ------------------------------------------------------------------
@@ -137,7 +152,7 @@ object TwinSpaceVpn {
         }.start()
     }
 
-    private fun startBlocking(context: Context): Pair<Boolean, String?> {
+    private fun startBlocking(context: Context): Pair<Boolean, String?> = synchronized(stateLock) {
         if (isRunning) return true to null
         val raw = getConfig(context) ?: return false to "no_config"
         if (VpnService.prepare(context) != null) return false to "not_authorized"
@@ -166,7 +181,7 @@ object TwinSpaceVpn {
         }.start()
     }
 
-    private fun stopBlocking(context: Context): Pair<Boolean, String?> {
+    private fun stopBlocking(context: Context): Pair<Boolean, String?> = synchronized(stateLock) {
         val be = backend
         val t = tunnel
         if (be == null || t == null || !isRunning) {

@@ -87,11 +87,22 @@ public class GmsCore {
             try {
                 BlackBoxCore.getContext().getPackageManager().getApplicationInfo(packageName, 0);
             } catch (PackageManager.NameNotFoundException e) {
-                // TwinSpace, 2026-11-27: an essential Google package is
-                // missing from the host phone. Do NOT silently skip it —
-                // InstallResult.success defaults to true, so the old bare
-                // continue reported "install success" while the package
-                // (e.g. gsf.login) was never installed. Fail honestly.
+                // TwinSpace, 2026-11-27: com.google.android.gsf.login is
+                // OPTIONAL. On modern phones (e.g. realme, Android 16) it
+                // is not shipped as a standalone package — the login
+                // service was merged into Play Services years ago — so
+                // demanding it fails the whole GMS install (and rolls
+                // back Play Store / Play Services / GSF, see
+                // installGApps) on phones that never had it. The old
+                // install worked fine without it (it was silently
+                // skipped), which proves Play Store / Play Services /
+                // GSF run without it; only Google account sign-in needs
+                // it. Skip it and install the rest; a real missing
+                // essential package still fails honestly below.
+                if ("com.google.android.gsf.login".equals(packageName)) {
+                    android.util.Log.d(TAG, "Host is missing optional " + packageName + " — skipping; Google account sign-in may not work");
+                    continue;
+                }
                 return new InstallResult().installError(packageName, "Host is missing " + packageName);
             }
             InstallResult installResult = blackBoxCore.installPackageAsUser(packageName, userId);

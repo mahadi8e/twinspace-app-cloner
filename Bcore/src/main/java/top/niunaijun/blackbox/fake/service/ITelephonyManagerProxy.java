@@ -149,6 +149,20 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
         }
     }
 
+    @ProxyMethod("getNetworkCountryIsoForPhone")
+    public static class GetNetworkCountryIsoForPhone extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            // Report the USA as the network country, matching the USA VPN
+            // and the fake location (default California). This is the one
+            // operator/country value served by the telephony binder, so it
+            // can be overridden here. The SIM operator name/number itself
+            // comes from system properties (gsm.sim.operator.*) and cannot
+            // be spoofed from this proxy, so it still shows the real one.
+            return "us";
+        }
+    }
+
     @ProxyMethod("getNetworkTypeForSubscriber")
     public static class GetNetworkTypeForSubscriber extends MethodHook {
         @Override

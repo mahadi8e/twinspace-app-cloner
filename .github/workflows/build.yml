@@ -1,4 +1,4 @@
-name: Build TwinSpace (debug)
+name: Build TwinSpace (release)
 
 on:
   workflow_dispatch:
@@ -33,14 +33,27 @@ jobs:
           sdkmanager --licenses || true
           yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.13846066"
 
-      - name: Build debug APK
+      # TwinSpace release signing (2026-11-27): decode the release keystore
+      # from the repository secret into a file on the ephemeral runner.
+      # The keystore itself never enters the repo; the decoded file is
+      # destroyed with the runner when the job ends.
+      - name: Decode release keystore
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+
+      - name: Build release APK
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew :app:assembleDebug --stacktrace
+          ./gradlew :app:assembleRelease --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TwinSpace-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: TwinSpace-release-apk
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error

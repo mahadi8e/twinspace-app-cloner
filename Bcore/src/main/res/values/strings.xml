@@ -2,4 +2,8 @@
 <resources>
     <string name="black_box_service_name">:black</string>
     <string name="app_icon">default icon</string>
+    <!-- TwinSpace, 2026-11-27: shown when a cloned app cannot start (its
+         activity is not in the virtual PM), instead of hanging on the
+         white splash screen forever. -->
+    <string name="launch_failed">Failed to launch app</string>
 </resources>

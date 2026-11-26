@@ -6,6 +6,9 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 
@@ -25,6 +28,8 @@ public class LauncherActivity extends Activity {
     public static final String KEY_PKG = "launch_pkg";
     public static final String KEY_USER_ID = "launch_user_id";
     private boolean isRunning = false;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable launchTimeoutRunnable;
 
     public static void launch(Intent intent, int userId) {
         try {
@@ -123,6 +128,24 @@ public class LauncherActivity extends Activity {
             
             
             launchAppAsync(launchIntent, userId);
+
+            // TwinSpace, 2026-11-27: the splash used to hang forever when
+            // the guest activity could not start (e.g. Chrome — its
+            // activity is not in the virtual PM, so startActivityLocked
+            // returns 0 silently and no guest ever comes to front to
+            // pause this splash). If nothing has paused this splash
+            // after 6 s, the launch failed: tell the user and close the
+            // splash instead of leaving a white screen forever.
+            launchTimeoutRunnable = () -> {
+                if (!isRunning) {
+                    Slog.e(TAG, "Launch timed out for " + packageName + " — guest never started");
+                    try {
+                        Toast.makeText(LauncherActivity.this, R.string.launch_failed, Toast.LENGTH_LONG).show();
+                    } catch (Exception ignored) { }
+                    finish();
+                }
+            };
+            mainHandler.postDelayed(launchTimeoutRunnable, 6000);
             
         } catch (Exception e) {
             Slog.e(TAG, "Critical error in LauncherActivity.onCreate()", e);
@@ -188,15 +211,14 @@ public class LauncherActivity extends Activity {
             } catch (Exception e) {
                 Log.e("TwinSpaceLaunch", "launchAppAsync FAILED: " + e);
                 Slog.e(TAG, "Error launching app", e);
-                
-                
+                // TwinSpace, 2026-11-27: the old catch only logged and
+                // left the white splash on screen forever. Show the
+                // failure and close the splash.
                 runOnUiThread(() -> {
                     try {
-                        
-                        Slog.e(TAG, "Failed to launch app: " + e.getMessage());
-                    } catch (Exception uiException) {
-                        Slog.e(TAG, "Error showing error message", uiException);
-                    }
+                        Toast.makeText(LauncherActivity.this, R.string.launch_failed, Toast.LENGTH_LONG).show();
+                    } catch (Exception ignored) { }
+                    finish();
                 });
             }
         }, "AppLaunchThread").start();
@@ -206,6 +228,9 @@ public class LauncherActivity extends Activity {
     protected void onPause() {
         super.onPause();
         isRunning = true;
+        // A guest activity came to front, so the launch worked — cancel
+        // the timeout that would otherwise close this splash as failed.
+        if (launchTimeoutRunnable != null) mainHandler.removeCallbacks(launchTimeoutRunnable);
     }
 
     @Override

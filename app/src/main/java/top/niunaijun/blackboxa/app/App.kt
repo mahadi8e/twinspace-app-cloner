@@ -10,6 +10,7 @@ import java.io.File
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.app.rocker.RockerManager
 import top.niunaijun.blackboxa.data.AppsRepository
+import top.niunaijun.blackboxa.location.TwinSpaceLocation
 import top.niunaijun.blackboxa.util.CrashReporter
 
 
@@ -86,6 +87,16 @@ class App : Application() {
                     }
                 } catch (e: Throwable) {
                     Log.e("App", "Error checking crash report: ${e.message}")
+                }
+            } else if (base != null) {
+                // Guest (clone) process only: set the timezone to the fake
+                // location's timezone, so the clone shows that place's
+                // local time. The host app keeps the real device timezone.
+                // Applies when the clone (re)launches.
+                try {
+                    TwinSpaceLocation.applyGuestTimezone(base)
+                } catch (e: Throwable) {
+                    Log.e("App", "Error applying guest timezone: ${e.message}")
                 }
             }
 

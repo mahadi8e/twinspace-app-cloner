@@ -158,11 +158,11 @@ class SettingFragment : PreferenceFragmentCompat() {
     private fun showFakeLocationDialog(pref: Preference) {
         val ctx = requireContext()
         val presets = TwinSpaceLocation.PRESETS
-        val items = presets.map { it.first } +
+        val items = presets.map { it.name } +
             getString(R.string.fake_location_custom) +
             getString(R.string.fake_location_off)
         val currentIndex = if (TwinSpaceLocation.isEnabled(ctx)) {
-            presets.indexOfFirst { it.first == TwinSpaceLocation.getName(ctx) }
+            presets.indexOfFirst { it.name == TwinSpaceLocation.getName(ctx) }
         } else {
             -1
         }
@@ -172,10 +172,10 @@ class SettingFragment : PreferenceFragmentCompat() {
                 listSingleChoice(items = items, initialSelection = currentIndex) { _, index, _ ->
                     when {
                         index < presets.size -> {
-                            val (name, lat, lng) = presets[index]
-                            TwinSpaceLocation.setLocation(ctx, lat, lng, name)
+                            val preset = presets[index]
+                            TwinSpaceLocation.setLocation(ctx, preset.latitude, preset.longitude, preset.name, preset.timezone)
                             updateFakeLocationSummary(pref)
-                            toast(getString(R.string.fake_location_set, name))
+                            toast(getString(R.string.fake_location_set, preset.name))
                         }
                         index == presets.size -> {
                             showCustomLocationDialog(pref)
@@ -216,7 +216,8 @@ class SettingFragment : PreferenceFragmentCompat() {
                         lat in -90.0..90.0 && lng in -180.0..180.0
                     ) {
                         val name = "$lat, $lng"
-                        TwinSpaceLocation.setLocation(ctx, lat, lng, name)
+                        val timezone = TwinSpaceLocation.timezoneForLongitude(lng)
+                        TwinSpaceLocation.setLocation(ctx, lat, lng, name, timezone)
                         updateFakeLocationSummary(pref)
                         toast(getString(R.string.fake_location_set, name))
                     } else {

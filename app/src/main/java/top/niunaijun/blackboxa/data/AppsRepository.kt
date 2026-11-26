@@ -108,8 +108,11 @@ class AppsRepository {
                     try {
                         val file = File(installedApplication.sourceDir)
 
-                        if ((installedApplication.flags and ApplicationInfo.FLAG_SYSTEM) != 0)
-                                continue
+                        // NOTE: system apps are intentionally NOT skipped here.
+                        // Play Store (com.android.vending) is a system app, and
+                        // hiding all system apps made it impossible to clone.
+                        // System apps that cannot run in the virtual space will
+                        // simply fail at launch; the user picks which to try.
 
                         if (!AbiUtils.isSupport(file)) continue
 

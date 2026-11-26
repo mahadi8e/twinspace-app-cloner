@@ -60,8 +60,18 @@ object GmsPrompt {
      * Call after a SUCCESSFUL clone of [clonedPackage] into space [userId].
      * Shows the prompt only when the host phone supports GMS and the space
      * does not have Google services installed yet.
+     *
+     * [onGmsInstalled] runs on the main thread right after a successful
+     * GMS install, so the caller can refresh the Space grid live instead
+     * of making the user leave and re-enter the screen to see the new
+     * Google apps.
      */
-    fun maybePrompt(activity: Activity, userId: Int, clonedPackage: String) {
+    fun maybePrompt(
+            activity: Activity,
+            userId: Int,
+            clonedPackage: String,
+            onGmsInstalled: (() -> Unit)? = null
+    ) {
         if (GOOGLE_PACKAGES.contains(clonedPackage)) {
             return
         }
@@ -75,12 +85,12 @@ object GmsPrompt {
                         false
                     }
             if (shouldPrompt) {
-                mainHandler.post { showPrompt(activity, userId) }
+                mainHandler.post { showPrompt(activity, userId, onGmsInstalled) }
             }
         }.start()
     }
 
-    private fun showPrompt(activity: Activity, userId: Int) {
+    private fun showPrompt(activity: Activity, userId: Int, onGmsInstalled: (() -> Unit)?) {
         if (activity.isFinishing || activity.isDestroyed) {
             return
         }
@@ -88,7 +98,7 @@ object GmsPrompt {
             MaterialDialog(activity).show {
                 title(R.string.gms_prompt_title)
                 message(R.string.gms_prompt_message)
-                positiveButton(R.string.gms_prompt_install) { installGms(userId) }
+                positiveButton(R.string.gms_prompt_install) { installGms(userId, onGmsInstalled) }
                 negativeButton(R.string.gms_prompt_not_now)
             }
         } catch (e: Exception) {
@@ -96,7 +106,7 @@ object GmsPrompt {
         }
     }
 
-    private fun installGms(userId: Int) {
+    private fun installGms(userId: Int, onGmsInstalled: (() -> Unit)?) {
         toast(R.string.gms_installing)
         Thread {
             val result =
@@ -109,7 +119,13 @@ object GmsPrompt {
             mainHandler.post {
                 when {
                     result == null -> toast(R.string.install_fail_no_msg)
-                    result.success -> toast(R.string.install_success)
+                    result.success -> {
+                        toast(R.string.install_success)
+                        // Refresh the Space grid live so the newly installed
+                        // Google apps (Play Store, Play Services, ...) show
+                        // immediately, without leaving and re-entering.
+                        onGmsInstalled?.invoke()
+                    }
                     else -> toast(getString(R.string.install_fail, result.msg ?: ""))
                 }
             }

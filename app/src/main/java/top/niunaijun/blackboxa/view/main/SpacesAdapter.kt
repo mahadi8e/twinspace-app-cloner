@@ -172,7 +172,11 @@ class SpacesAdapter(
                 val (clonedUserId, clonedPackage) = event
                 if (clonedUserId == userId && !state.gmsPromptHandled) {
                     state.gmsPromptHandled = true
-                    GmsPrompt.maybePrompt(activity, clonedUserId, clonedPackage)
+                    GmsPrompt.maybePrompt(activity, clonedUserId, clonedPackage) {
+                        // Refresh this Space's app list live after the GMS
+                        // install, so the Google apps show immediately.
+                        viewModel.getInstalledApps(clonedUserId)
+                    }
                 }
                 if (clonedUserId == userId && !state.vpnPromptHandled) {
                     state.vpnPromptHandled = true

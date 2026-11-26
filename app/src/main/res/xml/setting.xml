@@ -38,7 +38,7 @@
 
         <Preference
                 android:key="fake_location"
-                android:title="@string/fake_location"
+                android:title="@string/fake_location_setting"
                 android:summary="@string/fake_location_summary" />
 
         <SwitchPreferenceCompat

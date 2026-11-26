@@ -77,7 +77,7 @@
     <string name="vpn_status_connected">Connected (USA)</string>
     <string name="vpn_status_not_connected">Not connected</string>
     <string name="vpn_config_invalid">Invalid WireGuard config</string>
-    <string name="fake_location">Fake location</string>
+    <string name="fake_location_setting">Fake location</string>
     <string name="fake_location_summary">Tap to choose a location for all clones</string>
     <string name="fake_location_off">Real location (fake location off)</string>
     <string name="fake_location_set">Location set to %1$s — all clones will use it</string>

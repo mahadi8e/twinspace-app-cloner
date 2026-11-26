@@ -6,6 +6,9 @@ import android.util.Log
 import android.webkit.URLUtil
 import androidx.lifecycle.MutableLiveData
 import java.io.File
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackbox.utils.AbiUtils
 import top.niunaijun.blackboxa.R
@@ -151,6 +154,7 @@ class AppsRepository {
                                                 installedApplication
                                         ), 
                                         installedApplication.packageName,
+                                        installedApplication.sourceDir,
                                         isXpModule,
                                         isSystemApp
                                 )
@@ -186,6 +190,7 @@ class AppsRepository {
                                     it.name,
                                     it.icon, 
                                     it.packageName,
+                                    it.sourceDir,
                                     blackBoxCore.isInstalled(it.packageName, userID),
                                     it.isSystemApp
                             )
@@ -200,7 +205,7 @@ class AppsRepository {
         }
     }
 
-    fun getVmInstallList(userId: Int, appsLiveData: MutableLiveData<List<AppInfo>>) {
+    suspend fun getVmInstallList(userId: Int, appsLiveData: MutableLiveData<List<AppInfo>>) {
         try {
             
             if (MemoryManager.isMemoryCritical()) {
@@ -270,7 +275,7 @@ class AppsRepository {
                 Log.w(TAG, "getVmInstallList: No applications found for userId=$userId")
             }
 
-            val appInfoList = mutableListOf<AppInfo>()
+            val appInfoList: List<AppInfo>
 
             
             val sortedApplicationList =
@@ -285,67 +290,45 @@ class AppsRepository {
                         applicationList
                     }
 
-            
-            sortedApplicationList.forEachIndexed { index, applicationInfo ->
-                try {
-                    
-                    if (index > 0 && index % 25 == 0) {
-                        if (MemoryManager.isMemoryCritical()) {
-                            Log.w(TAG, "Memory critical during processing, forcing GC")
-                            MemoryManager.forceGarbageCollectionIfNeeded()
-                        }
-                    }
-
-                    
-                    if (applicationInfo == null) {
-                        Log.w(
-                                TAG,
-                                "getVmInstallList: Skipping null applicationInfo at index $index"
-                        )
-                        return@forEachIndexed
-                    }
-
-                    
-                    if (applicationInfo.packageName.isNullOrBlank()) {
-                        Log.w(
-                                TAG,
-                                "getVmInstallList: Skipping app with null/blank package name at index $index"
-                        )
-                        return@forEachIndexed
-                    }
-
+            // TwinSpace, 2026-11-27 (faster cold start): load every app's
+            // label + icon in parallel instead of one by one. The icon
+            // decode (read the APK + scale the bitmap) is the slow part,
+            // so N sequential decodes become one batch. Order is preserved
+            // (awaitAll returns results in list order) and the per-app
+            // try/catch is kept, so one bad app cannot fail the whole list.
+            // Runs on Dispatchers.IO (the caller is launchOnUI); the icon
+            // cache is thread-safe (LruCache is synchronized) and a
+            // memory-critical device still skips icons via safeLoadAppIcon.
+            val visibleApps = sortedApplicationList.filter { applicationInfo ->
+                when {
+                    applicationInfo == null -> false
+                    applicationInfo.packageName.isNullOrBlank() -> false
                     // Hidden Google services (see HIDDEN_PACKAGES): they are
                     // installed in the Space but never shown in the grid.
-                    if (HIDDEN_PACKAGES.contains(applicationInfo.packageName)) {
-                        return@forEachIndexed
-                    }
-
-                    val info =
+                    HIDDEN_PACKAGES.contains(applicationInfo.packageName) -> false
+                    else -> true
+                }
+            }
+            appInfoList = coroutineScope {
+                visibleApps.map { applicationInfo ->
+                    async {
+                        try {
                             AppInfo(
                                     safeLoadAppLabel(applicationInfo),
-                                    safeLoadAppIcon(
-                                            applicationInfo
-                                    ), 
+                                    safeLoadAppIcon(applicationInfo),
                                     applicationInfo.packageName,
+                                    applicationInfo.sourceDir ?: "",
                                     false
                             )
-
-                    appInfoList.add(info)
-
-                    
-                    if (index > 0 && index % 50 == 0) {
-                        Log.d(
-                                TAG,
-                                "getVmInstallList: Processed $index/${sortedApplicationList.size} apps - ${MemoryManager.getMemoryInfo()}"
-                        )
+                        } catch (e: Exception) {
+                            Log.e(
+                                    TAG,
+                                    "getVmInstallList: Error processing app ${applicationInfo.packageName}: ${e.message}"
+                            )
+                            null
+                        }
                     }
-                } catch (e: Exception) {
-                    Log.e(
-                            TAG,
-                            "getVmInstallList: Error processing app at index $index (${applicationInfo?.packageName}): ${e.message}"
-                    )
-                    
-                }
+                }.awaitAll().filterNotNull()
             }
 
             Log.d(

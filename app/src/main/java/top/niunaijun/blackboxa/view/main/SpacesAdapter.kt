@@ -65,6 +65,17 @@ class SpacesAdapter(
         var items: List<AppInfo> = emptyList()
 
         /**
+         * TwinSpace, 2026-11-27: true once the app list has been loaded
+         * at least once for this space. Before the first load the grid is
+         * empty, but that does NOT mean the space has no apps — so the
+         * "No apps in this space yet" text (and the loading spinner) are
+         * only shown based on this flag, not on items.isEmpty() alone.
+         * Otherwise every cold start flashes "No apps" for a second
+         * before the real list arrives.
+         */
+        var loaded = false
+
+        /**
          * Clone-time GMS prompt guard for the current picker session: reset
          * by [installIntoSpace], set when a clone-success event is handled,
          * so one clone operation can raise the prompt at most once. It is
@@ -152,6 +163,7 @@ class SpacesAdapter(
         val viewModel = state.viewModel ?: return
         val userId = state.userId
         viewModel.appsLiveData.observe(activity) { list ->
+            state.loaded = true
             state.items = list ?: emptyList()
             notifySpaceChanged(userId)
         }
@@ -273,8 +285,15 @@ class SpacesAdapter(
             attachMenuTouch(grid)
         }
         gridAdapter.setItems(state.items)
+        // TwinSpace, 2026-11-27: show the spinner while the first load is
+        // still running, and the "No apps" text only once the load finished
+        // AND the space is really empty. Before the first load items is
+        // empty too, and showing "No apps" then is wrong (it flashes on
+        // every cold start before the real list arrives).
+        holder.binding.spaceLoading.visibility =
+                if (!state.loaded) View.VISIBLE else View.GONE
         holder.binding.spaceEmpty.visibility =
-                if (state.items.isEmpty()) View.VISIBLE else View.GONE
+                if (state.loaded && state.items.isEmpty()) View.VISIBLE else View.GONE
         grid.visibility = if (state.items.isEmpty()) View.GONE else View.VISIBLE
     }
 

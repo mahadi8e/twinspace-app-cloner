@@ -39,6 +39,27 @@ public class GmsCore {
         GOOGLE_SERVICE.add("com.google.android.syncadapters.calendar");
     }
 
+    /**
+     * Google service packages that are NOT installed into a space.
+     * These are one-time setup / background helpers and the Play Store
+     * does not need them:
+     * - onetimeinitializer: runs once at first Google setup, then stops.
+     * - configupdater: background config updates for Google services.
+     * - partnersetup: carrier/OEM partner setup.
+     * - feedback: crash/feedback reporting to Google Play.
+     * Google Services Framework (GSF, com.google.android.gsf) is
+     * deliberately NOT in this list: the Play Store uses it for sign-in
+     * and core functions, so removing it would break the Play Store.
+     */
+    private static final HashSet<String> SKIP_PACKAGES = new HashSet<>();
+
+    static {
+        SKIP_PACKAGES.add("com.google.android.onetimeinitializer");
+        SKIP_PACKAGES.add("com.google.android.configupdater");
+        SKIP_PACKAGES.add("com.google.android.partnersetup");
+        SKIP_PACKAGES.add("com.google.android.feedback");
+    }
+
     public static boolean isGoogleService(String packageName) {
         return GOOGLE_SERVICE.contains(packageName);
     }
@@ -50,6 +71,11 @@ public class GmsCore {
     private static InstallResult installPackages(Set<String> list, int userId) {
         BlackBoxCore blackBoxCore = BlackBoxCore.get();
         for (String packageName : list) {
+            // Skip the optional helper packages (see SKIP_PACKAGES): they
+            // only clutter the Space and the Play Store does not need them.
+            if (SKIP_PACKAGES.contains(packageName)) {
+                continue;
+            }
             if (blackBoxCore.isInstalled(packageName, userId)) {
                 continue;
             }

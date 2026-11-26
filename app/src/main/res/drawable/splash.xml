@@ -7,8 +7,15 @@
     </item>
 
     <item>
+        <!-- TwinSpace: was @mipmap/ic_launcher — on API 26+ that resolves
+             to the adaptive-icon XML (mipmap-anydpi-v26/ic_launcher.xml),
+             and a <bitmap> cannot load an adaptive icon, so inflating this
+             layer-list threw Resources$NotFoundException for splash.xml
+             and WelcomeActivity crashed on every launch (Android 16,
+             bug report 2026-11-26). The foreground is a real PNG in all
+             densities, so it loads as a bitmap on every API level. -->
         <bitmap
                 android:gravity="center"
-                android:src="@mipmap/ic_launcher" />
+                android:src="@mipmap/ic_launcher_foreground" />
     </item>
 </layer-list>

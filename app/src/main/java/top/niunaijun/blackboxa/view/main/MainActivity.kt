@@ -138,6 +138,32 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
         }
     }
 
+    /**
+     * TwinSpace, 2026-11-27: restart the whole app process. This is what
+     * "Clear & retry" must do. When a crash report exists, App skips the
+     * engine init (attachBaseContext / onCreate return early so the report
+     * dialog can appear), so calling initNormal() directly here could
+     * never recover — BlackBoxCore was never attached/initialised and
+     * onBeforeMainActivityOnCreate / initSpaces would fail or crash again.
+     * Restarting lets App run its full engine init (the report/marker is
+     * already cleared by the caller, so it no longer skips it).
+     */
+    private fun restartApp() {
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            // Kill this half-initialised process so the relaunch starts
+            // fresh; the startActivity Intent is already with the system.
+            Runtime.getRuntime().exit(0)
+        } else {
+            // No launcher intent (should not happen) — fall back to the
+            // old behaviour rather than leaving the user stuck.
+            Log.e(TAG, "restartApp: no launch intent, falling back to initNormal")
+            initNormal()
+        }
+    }
+
     private fun showCrashReportDialog() {
         val report = CrashReporter.readReport(this)
         val text = "The app crashed on the last launch. Please share this report so the crash can be fixed.\n\n" + report
@@ -157,7 +183,7 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
             .setNegativeButton("Clear & retry") { _, _ ->
                 CrashReporter.clearReport(this)
                 CrashReporter.clearMarker(this)
-                initNormal()
+                restartApp()
             }
             .setCancelable(false)
             .show()
@@ -181,7 +207,7 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
             }
             .setNegativeButton("Clear & retry") { _, _ ->
                 CrashReporter.clearMarker(this)
-                initNormal()
+                restartApp()
             }
             .setCancelable(false)
             .show()

@@ -87,8 +87,12 @@ public class GmsCore {
             try {
                 BlackBoxCore.getContext().getPackageManager().getApplicationInfo(packageName, 0);
             } catch (PackageManager.NameNotFoundException e) {
-                
-                continue;
+                // TwinSpace, 2026-11-27: an essential Google package is
+                // missing from the host phone. Do NOT silently skip it —
+                // InstallResult.success defaults to true, so the old bare
+                // continue reported "install success" while the package
+                // (e.g. gsf.login) was never installed. Fail honestly.
+                return new InstallResult().installError(packageName, "Host is missing " + packageName);
             }
             InstallResult installResult = blackBoxCore.installPackageAsUser(packageName, userId);
             if (!installResult.success) {

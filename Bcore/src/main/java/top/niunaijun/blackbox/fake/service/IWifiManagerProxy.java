@@ -40,10 +40,17 @@ public class IWifiManagerProxy extends BinderInvocationStub {
 
     @ProxyMethod("getConnectionInfo")
     public static class GetConnectionInfo extends MethodHook {
-        
+
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             WifiInfo wifiInfo = (WifiInfo) method.invoke(who, args);
+            // TwinSpace, 2026-11-27: the framework may return null when
+            // Wi-Fi is off/disconnected. Dereferencing it below (to fake
+            // the BSSID/SSID) threw NullPointerException in the guest.
+            // Return null, exactly as the real call would.
+            if (wifiInfo == null) {
+                return null;
+            }
             BRWifiInfo.get(wifiInfo)._set_mBSSID("ac:62:5a:82:65:c4");
             BRWifiInfo.get(wifiInfo)._set_mMacAddress("ac:62:5a:82:65:c4");
             BRWifiInfo.get(wifiInfo)._set_mWifiSsid(BRWifiSsid.get().createFromAsciiEncoded("BlackBox_Wifi"));

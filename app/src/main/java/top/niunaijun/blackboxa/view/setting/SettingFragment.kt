@@ -1,10 +1,14 @@
 package top.niunaijun.blackboxa.view.setting
 
+import android.app.Activity
+import android.net.VpnService
 import android.os.Bundle
 import android.text.InputType
 import android.util.Log
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
 import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.input.input
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
@@ -17,6 +21,93 @@ import top.niunaijun.blackboxa.view.gms.GmsManagerActivity
 import top.niunaijun.blackboxa.vpn.TwinSpaceVpn
 
 class SettingFragment : PreferenceFragmentCompat() {
+
+    /**
+     * TwinSpace, 2026-11-27: the system VPN consent dialog, launched from
+     * Settings when the user turns the VPN on. A fresh install wipes the
+     * VPN consent, so VpnService.prepare() returns a non-null Intent and
+     * TwinSpaceVpn.start() can only report "not_authorized" — it never
+     * launches the consent dialog itself. Previously the toggle just
+     * toasted vpn_not_authorized and left the switch ON with the tunnel
+     * down, and the only place the dialog ever appeared was
+     * MainActivity.checkVpnPermission() on a cold start. Now the toggle
+     * asks for consent right here: on RESULT_OK the tunnel starts, and
+     * on denial the switch reverts to OFF so it stops claiming the VPN
+     * is on.
+     */
+    private val vpnPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            try {
+                if (result.resultCode == Activity.RESULT_OK) {
+                    Log.d(TAG, "VPN permission granted from Settings")
+                    startVpn()
+                } else {
+                    Log.w(TAG, "VPN permission denied by user")
+                    // Revert the switch so it stops claiming the VPN is on.
+                    AppManager.mBlackBoxLoader.invalidUseVpnNetwork(false)
+                    try {
+                        val pref = findPreference<SwitchPreferenceCompat>("use_vpn_network")
+                        pref?.isChecked = false
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error reverting VPN switch: ${e.message}")
+                    }
+                    refreshVpnStatus()
+                    toast(R.string.vpn_not_authorized)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling VPN permission result: ${e.message}")
+            }
+        }
+
+    /**
+     * Start the VPN, asking for the system VPN consent first when it has
+     * not been granted yet (fresh install, or consent revoked). When the
+     * consent dialog is shown, the tunnel starts from the launcher
+     * callback above; otherwise it starts immediately.
+     */
+    private fun startVpnWithPermission() {
+        val ctx = requireContext()
+        try {
+            val intent = VpnService.prepare(ctx)
+            if (intent != null) {
+                vpnPermissionLauncher.launch(intent)
+                return
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error preparing VPN: ${e.message}")
+        }
+        startVpn()
+    }
+
+    private fun startVpn() {
+        TwinSpaceVpn.start(requireContext()) { ok, err ->
+            refreshVpnStatus()
+            when {
+                ok -> toast(R.string.vpn_started)
+                err == "no_config" -> toast(R.string.vpn_no_config)
+                err == "not_authorized" -> {
+                    // Consent was revoked between prepare() and start() —
+                    // ask again instead of leaving the switch on with the
+                    // tunnel down.
+                    startVpnWithPermission()
+                }
+                else -> {
+                    // Show the real error (e.g. a bad
+                    // config) instead of a generic toast.
+                    try {
+                        MaterialDialog(requireContext()).show {
+                            title(R.string.vpn_start_failed)
+                            message(text = err ?: getString(R.string.vpn_start_failed))
+                            positiveButton(R.string.done)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error showing VPN start error: ${e.message}")
+                        toast(R.string.vpn_start_failed)
+                    }
+                }
+            }
+        }
+    }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.setting, rootKey)
@@ -309,28 +400,9 @@ class SettingFragment : PreferenceFragmentCompat() {
                     // auto-starts once the user pastes one in VPN config.
                     showRestartToast = false
                     if (tmpHide) {
-                        TwinSpaceVpn.start(requireContext()) { ok, err ->
-                            refreshVpnStatus()
-                            when {
-                                ok -> toast(R.string.vpn_started)
-                                err == "no_config" -> toast(R.string.vpn_no_config)
-                                err == "not_authorized" -> toast(R.string.vpn_not_authorized)
-                                else -> {
-                                    // Show the real error (e.g. a bad
-                                    // config) instead of a generic toast.
-                                    try {
-                                        MaterialDialog(requireContext()).show {
-                                            title(R.string.vpn_start_failed)
-                                            message(text = err ?: getString(R.string.vpn_start_failed))
-                                            positiveButton(R.string.done)
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Error showing VPN start error: ${e.message}")
-                                        toast(R.string.vpn_start_failed)
-                                    }
-                                }
-                            }
-                        }
+                        // Asks for the system VPN consent first when needed
+                        // (fresh install); see startVpnWithPermission().
+                        startVpnWithPermission()
                     } else {
                         TwinSpaceVpn.stop(requireContext()) { ok, _ ->
                             refreshVpnStatus()

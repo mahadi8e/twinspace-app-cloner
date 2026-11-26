@@ -33,6 +33,20 @@ SpoofedProp spoofed_props[] = {
         {"ro.kernel.android.qemud", ""},
         {"ro.hardware.egl", "adreno"},
         {"ro.boot.qemu", "0"},
+        // TwinSpace: make the SIM / network look like a US carrier
+        // (T-Mobile, MCC+MNC 310260) so clones report the USA. The
+        // telephony APIs (getSimCountryIso / getSimOperator /
+        // getSimOperatorName / getNetworkOperator / getNetworkOperatorName)
+        // read these system properties directly, NOT the telephony binder,
+        // so this property hook is the only way to spoof them. The
+        // network country (getNetworkCountryIso) is already spoofed
+        // through the ITelephony binder hook.
+        {"gsm.sim.operator.iso-country", "us"},
+        {"gsm.sim.operator.numeric", "310260"},
+        {"gsm.sim.operator.alpha", "T-Mobile"},
+        {"gsm.operator.iso-country", "us"},
+        {"gsm.operator.numeric", "310260"},
+        {"gsm.operator.alpha", "T-Mobile"},
     {nullptr, nullptr} 
 };
 

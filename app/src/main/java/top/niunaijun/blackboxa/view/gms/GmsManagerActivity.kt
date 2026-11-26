@@ -41,6 +41,11 @@ class GmsManagerActivity : LoadingActivity() {
         viewModel.mInstalledLiveData.observe(this) {
             hideLoading()
             mAdapter.setItems(it)
+            if (it.isNullOrEmpty()) {
+                // The Space list came back empty (the engine service was
+                // not ready). Tell the user instead of a blank screen.
+                toast("No spaces found. Please go back and try again.")
+            }
         }
 
         viewModel.mUpdateInstalledLiveData.observe(this) { result ->

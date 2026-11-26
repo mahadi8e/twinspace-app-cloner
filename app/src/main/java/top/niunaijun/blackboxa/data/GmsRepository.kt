@@ -1,7 +1,9 @@
 package top.niunaijun.blackboxa.data
 
+import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.core.system.user.BUserInfo
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.bean.GmsBean
@@ -11,20 +13,63 @@ import top.niunaijun.blackboxa.util.getString
 
 class GmsRepository {
 
+    private val TAG = "GmsRepository"
 
     fun getGmsInstalledList(mInstalledLiveData: MutableLiveData<List<GmsBean>>) {
         val userList = arrayListOf<GmsBean>()
 
-        BlackBoxCore.get().users.forEach {
-            val userId = it.id
-            val userName =
-                AppManager.mRemarkSharedPreferences.getString("Remark$userId", "User $userId") ?: ""
-            val isInstalled = BlackBoxCore.get().isInstallGms(userId)
-            val bean = GmsBean(userId, userName, isInstalled)
-            userList.add(bean)
-        }
+        try {
+            // TwinSpace: the Space list comes from the engine's
+            // USER_MANAGER service, which may not be ready the instant
+            // this screen opens (the black process is still starting).
+            // Retry a few times before giving up, like getVmInstallList
+            // does for the app list.
+            var users: List<BUserInfo>? = null
+            var retryCount = 0
+            while ((users == null || users.isEmpty()) && retryCount < 3) {
+                try {
+                    users = BlackBoxCore.get().users
+                } catch (e: Exception) {
+                    Log.e(TAG, "getGmsInstalledList: error getting users, attempt ${retryCount + 1}: ${e.message}")
+                }
+                if (users.isNullOrEmpty()) {
+                    retryCount++
+                    if (retryCount < 3) {
+                        try {
+                            Thread.sleep(300)
+                        } catch (ignored: InterruptedException) {
+                        }
+                    }
+                }
+            }
+            if (users.isNullOrEmpty()) {
+                Log.w(TAG, "getGmsInstalledList: no users found after $retryCount attempts")
+            }
 
-        mInstalledLiveData.postValue(userList)
+            users?.forEach {
+                try {
+                    val userId = it.id
+                    val userName =
+                        AppManager.mRemarkSharedPreferences.getString("Remark$userId", "User $userId") ?: "User $userId"
+                    val isInstalled = try {
+                        BlackBoxCore.get().isInstallGms(userId)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "getGmsInstalledList: isInstallGms failed for user $userId: ${e.message}")
+                        false
+                    }
+                    val bean = GmsBean(userId, userName, isInstalled)
+                    userList.add(bean)
+                } catch (e: Exception) {
+                    Log.e(TAG, "getGmsInstalledList: error processing user ${it?.id}: ${e.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getGmsInstalledList: unexpected error: ${e.message}")
+        } finally {
+            // Always post, even on failure, so the loading indicator
+            // dismisses and the screen never stays stuck on loading.
+            mInstalledLiveData.postValue(userList)
+        }
     }
 
     fun installGms(

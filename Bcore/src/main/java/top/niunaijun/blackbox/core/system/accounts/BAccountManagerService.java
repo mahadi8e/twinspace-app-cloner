@@ -199,15 +199,19 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     @Override
     public AuthenticatorDescription[] getAuthenticatorTypes(int userId) throws RemoteException {
-        
-        BUserAccounts userAccounts = getUserAccounts(userId);
+        // TwinSpace, 2026-11-27: return ALL registered authenticators
+        // (e.g. com.google from in-VA GMS), not only the types that
+        // already have an account. The old code iterated the user's
+        // existing accounts, so before any Google account was added
+        // apps saw no Google authenticator at all and never offered
+        // Google sign-in. AOSP returns every registered authenticator;
+        // the virtual cache (loaded from the virtual PM) is the source
+        // of truth. Accounts themselves stay per-user (per-space) in
+        // accounts.conf, so this changes discovery only, not storage.
         List<AuthenticatorDescription> authenticatorDescriptions = new ArrayList<>();
-        synchronized (userAccounts.lock) {
-            for (BAccount account : userAccounts.accounts) {
-                AuthenticatorInfo authenticatorInfo = mAuthenticatorCache.authenticators.get(account.account.type);
-                if (authenticatorInfo != null) {
-                    authenticatorDescriptions.add(authenticatorInfo.desc);
-                }
+        synchronized (mAuthenticatorCache.authenticators) {
+            for (AuthenticatorInfo authenticatorInfo : mAuthenticatorCache.authenticators.values()) {
+                authenticatorDescriptions.add(authenticatorInfo.desc);
             }
         }
         return authenticatorDescriptions.toArray(new AuthenticatorDescription[]{});

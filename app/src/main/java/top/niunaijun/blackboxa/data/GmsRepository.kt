@@ -84,6 +84,13 @@ class GmsRepository {
             // "Real Location". Give them the global fake location (only
             // when it is turned on).
             TwinSpaceLocation.applyLocationIfEnabled(BlackBoxCore.getContext())
+            // The Space grid on MainActivity skips reloading when the
+            // user list is unchanged (see refreshSpaces) -- but a GMS
+            // install adds apps INSIDE an existing space, so the grid
+            // would stay stale until the app is killed and reopened.
+            // Mark the spaces dirty so the next refreshSpaces() reloads
+            // the app lists live.
+            spacesDirty = true
         }
 
         val result = if (installResult.success) {
@@ -105,6 +112,12 @@ class GmsRepository {
             isSuccess = BlackBoxCore.get().uninstallGms(userID)
         }
 
+        if (isSuccess) {
+            // See installGms: a GMS uninstall removes apps from an
+            // existing space, so the Space grid must reload live too.
+            spacesDirty = true
+        }
+
         val result = if (isSuccess) {
             getString(R.string.uninstall_success)
         } else {
@@ -114,5 +127,17 @@ class GmsRepository {
         val bean = GmsInstallBean(userID,isSuccess,result)
 
         mUpdateInstalledLiveData.postValue(bean)
+    }
+
+    companion object {
+        /**
+         * Set when a GMS install/uninstall succeeds (GMS Manager path).
+         * MainActivity.refreshSpaces() checks it: a GMS change adds or
+         * removes apps inside an existing space without changing the
+         * user list, so the "nothing changed" early-return must not
+         * skip the reload. Cleared by refreshSpaces() once acted on.
+         */
+        @Volatile
+        var spacesDirty = false
     }
 }

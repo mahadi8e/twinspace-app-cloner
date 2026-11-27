@@ -17,6 +17,7 @@ import com.afollestad.materialdialogs.MaterialDialog
 import top.niunaijun.blackbox.BlackBoxCore
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
+import top.niunaijun.blackboxa.data.GmsRepository
 import top.niunaijun.blackboxa.databinding.ActivityMainBinding
 import top.niunaijun.blackboxa.util.CrashReporter
 import top.niunaijun.blackboxa.util.inflate
@@ -255,11 +256,17 @@ class MainActivity : LoadingActivity(), SpacesAdapter.Callbacks {
         try {
             val userIds = BlackBoxCore.get().users.map { it.id }
             spacesAdapter.submitSpaces(userIds)
-            if (userIds == lastRefreshedUserIds && spacesLoaded) {
+            // A GMS install/uninstall (GMS Manager) adds or removes apps
+            // INSIDE an existing space, so the user list is unchanged --
+            // but the Space grid must still reload live, or the Google
+            // apps only show after the app is killed and reopened.
+            val gmsChanged = GmsRepository.spacesDirty
+            if (userIds == lastRefreshedUserIds && spacesLoaded && !gmsChanged) {
                 // Nothing changed since the last load; skip reloading every
                 // Space (and every app icon) again.
                 return
             }
+            GmsRepository.spacesDirty = false
             lastRefreshedUserIds = userIds
             spacesLoaded = true
             userIds.forEach { spacesAdapter.loadSpace(it) }

@@ -13,6 +13,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
@@ -1400,9 +1401,82 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         generateServicesMap(
                 mPms.queryIntentServices(intent, PackageManager.GET_META_DATA, BUserHandle.USER_ALL),
                 mAuthenticatorCache.authenticators, new RegisteredServicesParser());
+        // TwinSpace, 2026-11-27: fallback -- the intent query above came
+        // back empty on a real device even with GMS installed (the GMS
+        // Manager diagnostic showed "Google authenticator পাওয়া যায়নি"),
+        // so addAccount could never bind. The virtual PM's intent
+        // resolution can miss GMS's authenticator service (e.g. split-APK
+        // resources the XML parser cannot read). Scan the installed
+        // Google packages' services directly for the authenticator
+        // declaration and register it, so addAccount can bind to it.
+        // Only fills in types the query missed.
+        if (!mAuthenticatorCache.authenticators.containsKey("com.google")) {
+            registerGoogleAuthenticator("com.google.android.gms");
+            registerGoogleAuthenticator("com.google.android.gsf.login");
+            registerGoogleAuthenticator("com.google.android.gsf");
+        }
         Log.d(TAG, "loadAuthenticatorCache(" + packageName + "): "
                 + mAuthenticatorCache.authenticators.size()
                 + " authenticators cached: " + mAuthenticatorCache.authenticators.keySet());
+    }
+
+    /**
+     * TwinSpace, 2026-11-27: direct-scan fallback for the Google
+     * authenticator. Looks at one installed Google package's own
+     * services for a service that declares the authenticator meta-data
+     * and registers it, bypassing the intent query (which can miss it)
+     * and the XML parse (which can fail on split-APK resources). The
+     * service that declares the meta-data in GMS / gsf.login IS the
+     * com.google authenticator, so when its XML cannot be read the type
+     * is registered directly with the real service component -- that is
+     * all bindToAuthenticator needs.
+     */
+    private void registerGoogleAuthenticator(String packageName) {
+        try {
+            PackageInfo pi = mPms.getPackageInfo(packageName,
+                    PackageManager.GET_SERVICES, BUserHandle.USER_ALL);
+            if (pi == null || pi.services == null) {
+                return;
+            }
+            RegisteredServicesParser accountParser = new RegisteredServicesParser();
+            for (ServiceInfo si : pi.services) {
+                if (si == null || si.metaData == null
+                        || !si.metaData.containsKey(AccountManager.AUTHENTICATOR_META_DATA_NAME)) {
+                    continue;
+                }
+                AuthenticatorDescription desc = null;
+                try {
+                    XmlResourceParser parser = accountParser.getParser(mContext, si,
+                            AccountManager.AUTHENTICATOR_META_DATA_NAME);
+                    if (parser != null) {
+                        AttributeSet attributeSet = Xml.asAttributeSet(parser);
+                        int type;
+                        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                                && type != XmlPullParser.START_TAG) {
+                        }
+                        if (AccountManager.AUTHENTICATOR_ATTRIBUTES_NAME.equals(parser.getName())) {
+                            desc = parseAuthenticatorDescription(
+                                    accountParser.getResources(mContext, si.applicationInfo),
+                                    si.packageName, attributeSet);
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                if (desc == null) {
+                    desc = new AuthenticatorDescription("com.google", si.packageName,
+                            0, 0, 0, 0, true);
+                    Log.w(TAG, "registerGoogleAuthenticator: XML parse failed for "
+                            + si.packageName + "/" + si.name
+                            + ", registering as com.google directly");
+                }
+                mAuthenticatorCache.authenticators.put(desc.type, new AuthenticatorInfo(desc, si));
+                Log.d(TAG, "registerGoogleAuthenticator: registered " + desc.type
+                        + " from " + si.packageName + "/" + si.name);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**

@@ -65,6 +65,8 @@ import top.niunaijun.blackbox.core.system.ProcessRecord;
 import top.niunaijun.blackbox.core.system.pm.BPackageManagerService;
 import top.niunaijun.blackbox.core.system.pm.PackageMonitor;
 import top.niunaijun.blackbox.core.system.user.BUserHandle;
+import top.niunaijun.blackbox.core.system.user.BUserInfo;
+import top.niunaijun.blackbox.core.system.user.BUserManagerService;
 import top.niunaijun.blackbox.utils.ArrayUtils;
 import top.niunaijun.blackbox.utils.CloseUtils;
 import top.niunaijun.blackbox.utils.FileUtils;
@@ -1422,61 +1424,117 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     /**
      * TwinSpace, 2026-11-27: direct-scan fallback for the Google
-     * authenticator. Looks at one installed Google package's own
-     * services for a service that declares the authenticator meta-data
-     * and registers it, bypassing the intent query (which can miss it)
-     * and the XML parse (which can fail on split-APK resources). The
-     * service that declares the meta-data in GMS / gsf.login IS the
-     * com.google authenticator, so when its XML cannot be read the type
-     * is registered directly with the real service component -- that is
-     * all bindToAuthenticator needs.
+     * authenticator. The intent query above can come back empty even
+     * with GMS installed, so scan one installed Google package's own
+     * services directly and register its authenticator, bypassing both
+     * the intent query and the XML parse.
+     *
+     * Two bugs in the first version of this fallback (fixed here):
+     * 1. It called getPackageInfo with BUserHandle.USER_ALL (-1), but
+     *    BPackageManagerService.getPackageInfo first checks
+     *    sUserManager.exists(userId), and exists(-1) is false (only
+     *    real users are in the user map) -- so it always returned null
+     *    and the fallback silently did nothing. A REAL user id must be
+     *    used (see getFirstUserId).
+     * 2. It required the service's meta-data to contain the
+     *    authenticator key, but the meta-data is exactly what can be
+     *    missing/broken for GMS in the virtual PM. So a service is now
+     *    also accepted by class name: GMS's authenticator is
+     *    GoogleAccountAuthenticatorService, and any service whose class
+     *    name contains "Authenticator" in a Google package is the
+     *    com.google authenticator. When the XML cannot be read, the
+     *    type is registered directly with the real service component --
+     *    that is all bindToAuthenticator needs.
      */
     private void registerGoogleAuthenticator(String packageName) {
+        int userId = getFirstUserId();
         try {
             PackageInfo pi = mPms.getPackageInfo(packageName,
-                    PackageManager.GET_SERVICES, BUserHandle.USER_ALL);
-            if (pi == null || pi.services == null) {
-                return;
-            }
-            RegisteredServicesParser accountParser = new RegisteredServicesParser();
-            for (ServiceInfo si : pi.services) {
-                if (si == null || si.metaData == null
-                        || !si.metaData.containsKey(AccountManager.AUTHENTICATOR_META_DATA_NAME)) {
-                    continue;
-                }
-                AuthenticatorDescription desc = null;
-                try {
-                    XmlResourceParser parser = accountParser.getParser(mContext, si,
-                            AccountManager.AUTHENTICATOR_META_DATA_NAME);
-                    if (parser != null) {
-                        AttributeSet attributeSet = Xml.asAttributeSet(parser);
-                        int type;
-                        while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
-                                && type != XmlPullParser.START_TAG) {
-                        }
-                        if (AccountManager.AUTHENTICATOR_ATTRIBUTES_NAME.equals(parser.getName())) {
-                            desc = parseAuthenticatorDescription(
-                                    accountParser.getResources(mContext, si.applicationInfo),
-                                    si.packageName, attributeSet);
+                    PackageManager.GET_SERVICES, userId);
+            if (pi != null && pi.services != null) {
+                RegisteredServicesParser accountParser = new RegisteredServicesParser();
+                for (ServiceInfo si : pi.services) {
+                    if (si == null || si.name == null) {
+                        continue;
+                    }
+                    boolean hasMetaData = si.metaData != null
+                            && si.metaData.containsKey(AccountManager.AUTHENTICATOR_META_DATA_NAME);
+                    boolean looksLikeAuthenticator = si.name.contains("Authenticator");
+                    if (!hasMetaData && !looksLikeAuthenticator) {
+                        continue;
+                    }
+                    AuthenticatorDescription desc = null;
+                    if (hasMetaData) {
+                        try {
+                            XmlResourceParser parser = accountParser.getParser(mContext, si,
+                                    AccountManager.AUTHENTICATOR_META_DATA_NAME);
+                            if (parser != null) {
+                                AttributeSet attributeSet = Xml.asAttributeSet(parser);
+                                int type;
+                                while ((type = parser.next()) != XmlPullParser.END_DOCUMENT
+                                        && type != XmlPullParser.START_TAG) {
+                                }
+                                if (AccountManager.AUTHENTICATOR_ATTRIBUTES_NAME.equals(parser.getName())) {
+                                    desc = parseAuthenticatorDescription(
+                                            accountParser.getResources(mContext, si.applicationInfo),
+                                            si.packageName, attributeSet);
+                                }
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
+                    if (desc == null) {
+                        desc = new AuthenticatorDescription("com.google", si.packageName,
+                                0, 0, 0, 0, true);
+                        Log.w(TAG, "registerGoogleAuthenticator: registering "
+                                + si.packageName + "/" + si.name
+                                + " as com.google directly (no usable authenticator XML)");
+                    }
+                    mAuthenticatorCache.authenticators.put(desc.type, new AuthenticatorInfo(desc, si));
+                    Log.d(TAG, "registerGoogleAuthenticator: registered " + desc.type
+                            + " from " + si.packageName + "/" + si.name);
+                    return;
                 }
-                if (desc == null) {
-                    desc = new AuthenticatorDescription("com.google", si.packageName,
-                            0, 0, 0, 0, true);
-                    Log.w(TAG, "registerGoogleAuthenticator: XML parse failed for "
-                            + si.packageName + "/" + si.name
-                            + ", registering as com.google directly");
-                }
+            }
+            // Last resort: look the known GMS authenticator service up
+            // by its explicit component, in case the package's service
+            // list itself is empty.
+            ServiceInfo si = mPms.getServiceInfo(new ComponentName(packageName,
+                    "com.google.android.gms.auth.account.authenticator.GoogleAccountAuthenticatorService"),
+                    0, userId);
+            if (si != null) {
+                AuthenticatorDescription desc = new AuthenticatorDescription("com.google",
+                        si.packageName, 0, 0, 0, 0, true);
                 mAuthenticatorCache.authenticators.put(desc.type, new AuthenticatorInfo(desc, si));
-                Log.d(TAG, "registerGoogleAuthenticator: registered " + desc.type
-                        + " from " + si.packageName + "/" + si.name);
+                Log.d(TAG, "registerGoogleAuthenticator: registered com.google by explicit component "
+                        + si.packageName + "/" + si.name);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * TwinSpace, 2026-11-27: the first real virtual user id (>= 0).
+     * BUserHandle.USER_ALL (-1) must NOT be used for package lookups:
+     * BPackageManagerService.getPackageInfo rejects it because
+     * BUserManagerService.exists(-1) is false.
+     */
+    private int getFirstUserId() {
+        try {
+            List<BUserInfo> users = BUserManagerService.get().getUsers();
+            if (users != null) {
+                for (BUserInfo user : users) {
+                    if (user != null && user.id >= 0) {
+                        return user.id;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return 0;
     }
 
     /**

@@ -690,7 +690,11 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     @Override
     public void addAccountAsUser(IAccountManagerResponse response, String accountType, String authTokenType, String[] requiredFeatures, boolean expectActivityLaunch, Bundle options, int userId) throws RemoteException {
-        
+        // TwinSpace, 2026-11-27: this was an empty no-op -- any caller
+        // (e.g. the Play Store's add-account flow) got total silence:
+        // no error, no sign-in UI, no account. Delegate to addAccount,
+        // which binds the in-VA authenticator for the type.
+        addAccount(response, accountType, authTokenType, requiredFeatures, expectActivityLaunch, options, userId);
     }
 
     @Override
@@ -1378,7 +1382,17 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
     }
 
     public void loadAuthenticatorCache(String packageName) {
-        mAuthenticatorCache.authenticators.clear();
+        // TwinSpace, 2026-11-27: only clear the whole cache on a full
+        // refresh (packageName == null). On a single-package refresh
+        // (a package was just installed), MERGE its authenticators in:
+        // the old code cleared everything first, so installing one
+        // Google package wiped the authenticators of every other one
+        // -- e.g. installing GSF after GMS could drop the com.google
+        // authenticator entirely, and addAccount would then fail with
+        // "bind failure" and no account could ever be added.
+        if (packageName == null) {
+            mAuthenticatorCache.authenticators.clear();
+        }
         Intent intent = new Intent(AccountManager.ACTION_AUTHENTICATOR_INTENT);
         if (packageName != null) {
             intent.setPackage(packageName);
@@ -1386,6 +1400,9 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         generateServicesMap(
                 mPms.queryIntentServices(intent, PackageManager.GET_META_DATA, BUserHandle.USER_ALL),
                 mAuthenticatorCache.authenticators, new RegisteredServicesParser());
+        Log.d(TAG, "loadAuthenticatorCache(" + packageName + "): "
+                + mAuthenticatorCache.authenticators.size()
+                + " authenticators cached: " + mAuthenticatorCache.authenticators.keySet());
     }
 
     private void generateServicesMap(List<ResolveInfo> services, Map<String, AuthenticatorInfo> map,
@@ -1737,6 +1754,14 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         private boolean bindToAuthenticator(String authenticatorType) {
             AuthenticatorInfo authenticatorInfo = mAuthenticatorCache.authenticators.get(authenticatorType);
             if (authenticatorInfo == null) {
+                // TwinSpace, 2026-11-27: log this as an error, not just
+                // verbose -- a missing com.google authenticator is exactly
+                // why tapping "Sign in" in the cloned Play Store does
+                // nothing (addAccount fails with "bind failure"). The
+                // cached types show which authenticators the virtual PM
+                // actually discovered from the in-VA GMS install.
+                Log.e(TAG, "no authenticator for " + authenticatorType
+                        + "; cached types: " + mAuthenticatorCache.authenticators.keySet());
                 if (Log.isLoggable(TAG, Log.VERBOSE)) {
                     Log.v(TAG, "there is no authenticator for " + authenticatorType
                             + ", bailing out");
@@ -1766,6 +1791,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
 
             if (!mContext.bindService(intent, this, flags)) {
+                Log.e(TAG, "bindService to " + componentName + " failed");
                 if (Log.isLoggable(TAG, Log.VERBOSE)) {
                     Log.v(TAG, "bindService to " + componentName + " failed");
                 }

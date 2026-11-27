@@ -3,6 +3,7 @@ package top.niunaijun.blackboxa.data
 import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.core.system.accounts.BAccountManagerService
 import top.niunaijun.blackbox.core.system.user.BUserInfo
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
@@ -71,6 +72,24 @@ class GmsRepository {
             // dismisses and the screen never stays stuck on loading.
             mInstalledLiveData.postValue(userList)
         }
+    }
+
+    /**
+     * TwinSpace, 2026-11-27: diagnostic for the GMS Manager screen --
+     * which account-authenticator types the virtual PackageManager found
+     * in the in-VA Google install. "com.google" must be in the list for
+     * Google sign-in to work; an empty list (or one without com.google)
+     * is exactly why tapping "Sign in" in the cloned Play Store does
+     * nothing. Runs on the caller's (IO) thread; always posts.
+     */
+    fun getAuthenticatorTypes(mAuthenticatorTypesLiveData: MutableLiveData<List<String>>) {
+        val types = try {
+            BAccountManagerService.getCachedAuthenticatorTypes()
+        } catch (e: Exception) {
+            Log.e(TAG, "getAuthenticatorTypes failed: ${e.message}")
+            emptyList<String>()
+        }
+        mAuthenticatorTypesLiveData.postValue(types)
     }
 
     fun installGms(

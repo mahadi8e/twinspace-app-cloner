@@ -13,6 +13,15 @@ class GmsViewModel(private val mRepo: GmsRepository) : BaseViewModel() {
 
     val mUpdateInstalledLiveData = MutableLiveData<GmsInstallBean>()
 
+    /** Authenticator types found in the in-VA Google install (diagnostic). */
+    val authenticatorTypesLiveData = MutableLiveData<List<String>>()
+
+    fun loadAuthenticatorTypes() {
+        launchOnUI {
+            mRepo.getAuthenticatorTypes(authenticatorTypesLiveData)
+        }
+    }
+
     fun getInstalledUser() {
         launchOnUI {
             mRepo.getGmsInstalledList(mInstalledLiveData)

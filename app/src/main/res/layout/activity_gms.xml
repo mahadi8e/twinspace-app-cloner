@@ -12,11 +12,27 @@
             android:layout_height="wrap_content"
             app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- TwinSpace, 2026-11-27: Google sign-in diagnostic. Shows whether
+         the virtual PackageManager found a com.google authenticator in
+         the in-VA Google install. Without it, tapping "Sign in" in the
+         cloned Play Store does nothing. -->
+    <TextView
+            android:id="@+id/authenticatorStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:textSize="14sp"
+            android:text="Google authenticator যাচাই করা হচ্ছে…"
+            app:layout_constraintTop_toBottomOf="@id/toolbar_layout" />
+
     <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerView"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/toolbar_layout" />
+            app:layout_constraintTop_toBottomOf="@id/authenticatorStatus" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

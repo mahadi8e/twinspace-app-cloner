@@ -48,6 +48,23 @@ class GmsManagerActivity : LoadingActivity() {
             }
         }
 
+        // TwinSpace, 2026-11-27: Google sign-in diagnostic -- shows
+        // whether the virtual PackageManager found a com.google
+        // authenticator in the in-VA Google install. Without it, tapping
+        // "Sign in" in the cloned Play Store does nothing, and no Google
+        // account can be added. The user just reads this line (or sends
+        // a screenshot); it decides the next fix.
+        viewModel.authenticatorTypesLiveData.observe(this) { types ->
+            val found = types ?: emptyList()
+            viewBinding.authenticatorStatus.text = if (found.contains("com.google")) {
+                "✓ Google authenticator পাওয়া গেছে (com.google) — Sign in কাজ করার কথা"
+            } else if (found.isEmpty()) {
+                "✗ Google authenticator পাওয়া যায়নি — তাই Sign in কাজ করে না"
+            } else {
+                "✗ Google authenticator পাওয়া যায়নি (পাওয়া গেছে: ${found.joinToString()}) — তাই Sign in কাজ করে না"
+            }
+        }
+
         viewModel.mUpdateInstalledLiveData.observe(this) { result ->
             if (result == null) {
                 return@observe
@@ -79,6 +96,7 @@ class GmsManagerActivity : LoadingActivity() {
         }
 
         viewModel.getInstalledUser()
+        viewModel.loadAuthenticatorTypes()
     }
 
     private fun initRecyclerView() {

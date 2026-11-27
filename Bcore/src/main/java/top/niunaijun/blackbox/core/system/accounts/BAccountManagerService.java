@@ -1405,6 +1405,30 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 + " authenticators cached: " + mAuthenticatorCache.authenticators.keySet());
     }
 
+    /**
+     * TwinSpace, 2026-11-27: diagnostic for the GMS Manager screen --
+     * which account-authenticator types the virtual PackageManager
+     * actually discovered from the in-VA Google install. Refreshes the
+     * cache first so the answer reflects the current install. Empty
+     * when the service is not ready or nothing was found; "com.google"
+     * must be in here for Google sign-in (addAccount) to work at all.
+     */
+    public static List<String> getCachedAuthenticatorTypes() {
+        try {
+            BAccountManagerService service = sService;
+            if (service == null) {
+                return new ArrayList<>();
+            }
+            service.loadAuthenticatorCache(null);
+            synchronized (service.mAuthenticatorCache.authenticators) {
+                return new ArrayList<>(service.mAuthenticatorCache.authenticators.keySet());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "getCachedAuthenticatorTypes failed: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
     private void generateServicesMap(List<ResolveInfo> services, Map<String, AuthenticatorInfo> map,
                                      RegisteredServicesParser accountParser) {
         for (ResolveInfo info : services) {

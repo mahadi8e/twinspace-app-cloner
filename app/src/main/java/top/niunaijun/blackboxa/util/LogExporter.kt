@@ -67,6 +67,14 @@ object LogExporter {
      * Shares [file] with an ACTION_SEND intent through the app's
      * FileProvider (${applicationId}.fileprovider). Returns false if
      * the share could not be started.
+     *
+     * NOTE: callers pass the APPLICATION context (SettingFragment
+     * uses applicationContext), so the chooser intent MUST carry
+     * FLAG_ACTIVITY_NEW_TASK — without it, startActivity() from a
+     * non-Activity context throws AndroidRuntimeException and the
+     * share silently fails with "Could not export the log".
+     * (Fixed 2026-11-28 ~19:35 +06: the first release build with
+     * Export log failed exactly this way.)
      */
     fun share(context: Context, file: File): Boolean {
         return try {
@@ -79,7 +87,9 @@ object LogExporter {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(
-                Intent.createChooser(intent, "Share TwinSpace log")
+                Intent.createChooser(intent, "Share TwinSpace log").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
             )
             true
         } catch (e: Exception) {

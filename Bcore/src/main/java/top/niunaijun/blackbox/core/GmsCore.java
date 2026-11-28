@@ -3,9 +3,11 @@ package top.niunaijun.blackbox.core;
 import android.content.pm.PackageManager;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import top.niunaijun.blackbox.BlackBoxCore;
+import top.niunaijun.blackbox.core.system.accounts.BAccountManagerService;
 import top.niunaijun.blackbox.entity.pm.InstallResult;
 
 
@@ -131,7 +133,30 @@ public class GmsCore {
             uninstallGApps(userId);
             return installResult;
         }
+        logAuthenticatorSelfCheck();
         return installResult;
+    }
+
+    /**
+     * TwinSpace, 2026-11-27: self-check after a GMS install -- log
+     * whether the in-VA authenticator cache actually contains
+     * com.google. If it does not, tapping "Sign in" in the cloned
+     * Play Store will do nothing (addAccount fails with "bind
+     * failure") no matter what else installed fine. Uses the same
+     * cache read the GMS Manager diagnostic shows (tag TS_ACCT, so it
+     * appears in the same logcat filter as the sign-in trace).
+     */
+    private static void logAuthenticatorSelfCheck() {
+        try {
+            List<String> types = BAccountManagerService.getCachedAuthenticatorTypes();
+            if (types.contains("com.google")) {
+                android.util.Log.d("TS_ACCT", "GmsCore self-check: com.google authenticator FOUND after GMS install (" + types + ")");
+            } else {
+                android.util.Log.e("TS_ACCT", "GmsCore self-check: com.google authenticator MISSING after GMS install; cached types: " + types + " -- Play Store Sign in will not work");
+            }
+        } catch (Throwable t) {
+            android.util.Log.e("TS_ACCT", "GmsCore self-check failed: " + t);
+        }
     }
 
     public static void uninstallGApps(int userId) {

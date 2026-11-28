@@ -30,18 +30,20 @@ public class CopyExecutor implements Executor {
         List<String> hostSplits = resolveHostSplits(packageName, option);
 
         try {
+            File libDir = BEnvironment.getAppLibDir(packageName);
             if (!option.isFlag(InstallOption.FLAG_SYSTEM)) {
-                File libDir = BEnvironment.getAppLibDir(packageName);
                 NativeUtils.copyNativeLib(new File(ps.pkg.baseCodePath), libDir);
-
-
-
-                for (String split : hostSplits) {
-                    try {
-                        NativeUtils.copyNativeLib(new File(split), libDir);
-                    } catch (Exception e) {
-                        Slog.w(TAG, "failed extracting native libs from split " + split + ": " + e.getMessage());
-                    }
+            }
+            // TwinSpace, 2026-11-27: extract native libs from split APKs
+            // for ALL install types. System installs (GMS) used to skip
+            // this entirely, so a split's .so files never reached the
+            // guest. The base APK's own libs are still skipped for
+            // system installs (unchanged behaviour).
+            for (String split : hostSplits) {
+                try {
+                    NativeUtils.copyNativeLib(new File(split), libDir);
+                } catch (Exception e) {
+                    Slog.w(TAG, "failed extracting native libs from split " + split + ": " + e.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -74,7 +76,15 @@ public class CopyExecutor implements Executor {
                 return -1;
             }
         } else if (option.isFlag(InstallOption.FLAG_SYSTEM)) {
-
+            // TwinSpace, 2026-11-27: system installs (GMS) used to
+            // copy NOTHING -- resolveHostSplits returned an empty list
+            // for FLAG_SYSTEM, so the guest only ever saw the base APK
+            // and missed config-split resources and native libs. Copy
+            // the splits into the virtual splits dir too (the base APK
+            // itself is still used in place from the host path).
+            if (copySplits(packageName, hostSplits) != 0) {
+                return -1;
+            }
         }
         return 0;
     }
@@ -83,9 +93,12 @@ public class CopyExecutor implements Executor {
 
     private List<String> resolveHostSplits(String packageName, InstallOption option) {
         List<String> result = new ArrayList<>();
-        if (option.isFlag(InstallOption.FLAG_SYSTEM)) {
-            return result;
-        }
+        // TwinSpace, 2026-11-27: this used to return an empty list for
+        // FLAG_SYSTEM installs, so GMS (installed via installBySystem)
+        // never got its split APKs copied and the guest only saw the
+        // base APK. Resolve the host's splits for system installs too;
+        // CopyExecutor now copies them into the virtual splits dir,
+        // where PackageManagerCompat picks them up (splitSourceDirs).
         try {
             ApplicationInfo hostInfo = BlackBoxCore.getPackageManager()
                     .getApplicationInfo(packageName, 0);

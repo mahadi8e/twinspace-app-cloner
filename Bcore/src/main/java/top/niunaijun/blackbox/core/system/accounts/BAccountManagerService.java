@@ -33,6 +33,7 @@ import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.Xml;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.util.AtomicFile;
@@ -77,6 +78,10 @@ import top.niunaijun.blackbox.utils.compat.AccountManagerCompat;
 @SuppressLint("InlinedApi")
 public class BAccountManagerService extends IBAccountManagerService.Stub implements ISystemService , PackageMonitor {
     private static final String TAG = "AccountManagerService";
+    // TwinSpace, 2026-11-27: step-by-step trace tag for the Google
+    // sign-in path (addAccount -> bind -> authenticator -> response).
+    // One line per step; failures log the exception here.
+    private static final String TS_ACCT = "TS_ACCT";
 
     private static BAccountManagerService sService = new BAccountManagerService();
 
@@ -115,6 +120,30 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
     @Override
     public void onPackageUninstalled(String packageName, boolean isRemove, int userId) {
         loadAuthenticatorCache(null);
+    }
+
+    /**
+     * TwinSpace, 2026-11-27: surface a sign-in failure to the user
+     * instead of failing silently (the Play Store just sits on its
+     * "Sign in" screen otherwise). One short Toast on the main thread;
+     * only ever called for the Google account type, so other accounts
+     * are never interrupted. Never throws.
+     */
+    private void showSignInError(final String msg) {
+        try {
+            mHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Toast.makeText(mContext, msg, Toast.LENGTH_LONG).show();
+                    } catch (Throwable t) {
+                        Log.e(TAG, "showSignInError failed: " + t);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            Log.e(TAG, "showSignInError post failed: " + t);
+        }
     }
 
     @Override
@@ -663,6 +692,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     @Override
     public void addAccount(IAccountManagerResponse response, String accountType, String authTokenType, String[] requiredFeatures, boolean expectActivityLaunch, Bundle optionsIn, int userId) throws RemoteException {
+        Log.d(TS_ACCT, "addAccount type=" + accountType + " user=" + userId + " expectLaunch=" + expectActivityLaunch);
         if (response == null) throw new IllegalArgumentException("response is null");
         if (accountType == null) throw new IllegalArgumentException("accountType is null");
 
@@ -678,6 +708,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 false , true ) {
             @Override
             public void run() throws RemoteException {
+                Log.d(TS_ACCT, "IAccountAuthenticator.addAccount type=" + mAccountType);
                 mAuthenticator.addAccount(this, mAccountType, authTokenType, requiredFeatures,
                         options);
             }
@@ -747,7 +778,30 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
     @Override
     public void confirmCredentialsAsUser(IAccountManagerResponse response, Account account, Bundle options, boolean expectActivityLaunch, int userId) throws RemoteException {
-        
+        // TwinSpace, 2026-11-27: this was an empty body -- any caller
+        // got total silence (no error, no UI, no result). Implemented
+        // the same way as updateCredentials: a Session that calls
+        // IAccountAuthenticator.confirmCredentials. (updateCredentials
+        // also calls clearCallingIdentity() first; that is NOT mirrored
+        // here -- it is never restored in updateCredentials, and
+        // addAccount, the closest analog, does not use it.)
+        if (response == null) throw new IllegalArgumentException("response is null");
+        if (account == null) throw new IllegalArgumentException("account is null");
+        BUserAccounts accounts = getUserAccounts(userId);
+        new Session(accounts, response, account.type, expectActivityLaunch,
+                true, account.name,
+                false, true) {
+            @Override
+            public void run() throws RemoteException {
+                mAuthenticator.confirmCredentials(this, account, options);
+            }
+            @Override
+            protected String toDebugString(long now) {
+                return super.toDebugString(now) + ", confirmCredentials"
+                        + ", " + account.toString()
+                        + ", options " + options;
+            }
+        }.bind();
     }
 
     @Override
@@ -1719,10 +1773,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
 
         void bind() {
+            Log.d(TS_ACCT, "Session.bind type=" + mAccountType + " user=" + mAccounts.userId);
             if (Log.isLoggable(TAG, Log.VERBOSE)) {
                 Log.v(TAG, "initiating bind to authenticator type " + mAccountType);
             }
             if (!bindToAuthenticator(mAccountType)) {
+                Log.e(TS_ACCT, "Session.bind FAILED type=" + mAccountType + " (bind failure)");
+                if ("com.google".equals(mAccountType)) {
+                    showSignInError("TwinSpace: Google sign-in failed — could not start the login service");
+                }
                 Log.d(TAG, "bind attempt failed for " + toDebugString());
                 onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION, "bind failure");
             }
@@ -1741,12 +1800,31 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
+            Log.d(TS_ACCT, "onServiceConnected " + name + " type=" + mAccountType);
             mAuthenticator = IAccountAuthenticator.Stub.asInterface(service);
             try {
                 run();
             } catch (RemoteException e) {
+                Log.e(TS_ACCT, "Session.run RemoteException type=" + mAccountType, e);
                 onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION,
                         "remote exception");
+            } catch (SecurityException e) {
+                // TwinSpace, 2026-11-27 (B3): if the authenticator
+                // rejects the caller -- the call comes from the host
+                // server process, not the system uid -- the binder call
+                // throws SecurityException, a RuntimeException that the
+                // RemoteException catch above would miss, and the
+                // session would hang until timeout with no visible
+                // error. Surface it as an error instead. (There is no
+                // wired uid-spoofing mechanism in this codebase to fix
+                // the caller itself: NativeCore.getCallingUid exists but
+                // has zero callers. See the report.)
+                Log.e(TS_ACCT, "Session.run SecurityException type=" + mAccountType + " (authenticator rejected the caller?)", e);
+                if ("com.google".equals(mAccountType)) {
+                    showSignInError("TwinSpace: Google sign-in blocked — the login service refused the request");
+                }
+                onError(AccountManager.ERROR_CODE_REMOTE_EXCEPTION,
+                        "security exception: " + e.getMessage());
             }
         }
 
@@ -1818,13 +1896,19 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
             }
             if (result != null
                     && (intent = result.getParcelable(AccountManager.KEY_INTENT)) != null) {
+                Log.d(TS_ACCT, "onResult KEY_INTENT type=" + mAccountType + " component=" + intent.getComponent() + " action=" + intent.getAction());
                 if (!checkKeyIntent(
                         Binder.getCallingUid(),
                         intent)) {
+                    Log.e(TS_ACCT, "onResult checkKeyIntent FAILED type=" + mAccountType + " component=" + intent.getComponent() + " (sign-in activity not resolvable in the clone)");
+                    if ("com.google".equals(mAccountType)) {
+                        showSignInError("TwinSpace: Google sign-in failed — the login screen could not be opened");
+                    }
                     onError(AccountManager.ERROR_CODE_INVALID_RESPONSE,
                             "invalid intent in bundle returned");
                     return;
                 }
+                Log.d(TS_ACCT, "onResult checkKeyIntent OK type=" + mAccountType + " component=" + intent.getComponent());
             }
             if (result != null
                     && !TextUtils.isEmpty(result.getString(AccountManager.KEY_AUTHTOKEN))) {
@@ -1908,6 +1992,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
         
         private boolean bindToAuthenticator(String authenticatorType) {
+            Log.d(TS_ACCT, "bindToAuthenticator type=" + authenticatorType);
             AuthenticatorInfo authenticatorInfo = mAuthenticatorCache.authenticators.get(authenticatorType);
             if (authenticatorInfo == null) {
                 // TwinSpace, 2026-11-27: log this as an error, not just
@@ -1916,8 +2001,13 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 // nothing (addAccount fails with "bind failure"). The
                 // cached types show which authenticators the virtual PM
                 // actually discovered from the in-VA GMS install.
+                Log.e(TS_ACCT, "bindToAuthenticator NO AUTHENTICATOR type=" + authenticatorType
+                        + "; cached types: " + mAuthenticatorCache.authenticators.keySet());
                 Log.e(TAG, "no authenticator for " + authenticatorType
                         + "; cached types: " + mAuthenticatorCache.authenticators.keySet());
+                if ("com.google".equals(authenticatorType)) {
+                    showSignInError("TwinSpace: Google sign-in unavailable — no login service found in the clone");
+                }
                 if (Log.isLoggable(TAG, Log.VERBOSE)) {
                     Log.v(TAG, "there is no authenticator for " + authenticatorType
                             + ", bailing out");
@@ -1936,7 +2026,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
             intent.setAction(AccountManager.ACTION_AUTHENTICATOR_INTENT);
             ComponentName componentName = new ComponentName(authenticatorInfo.serviceInfo.packageName, authenticatorInfo.serviceInfo.name);
             intent.setComponent(componentName);
-            
+
             intent.putExtra("_B_|_UserId", mAccounts.userId);
 
             if (Log.isLoggable(TAG, Log.VERBOSE)) {
@@ -1946,8 +2036,14 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
 
 
-            if (!mContext.bindService(intent, this, flags)) {
+            boolean bound = mContext.bindService(intent, this, flags);
+            Log.d(TS_ACCT, "bindService to " + componentName + " ok=" + bound + " user=" + mAccounts.userId);
+            if (!bound) {
+                Log.e(TS_ACCT, "bindService FAILED to " + componentName);
                 Log.e(TAG, "bindService to " + componentName + " failed");
+                if ("com.google".equals(authenticatorType)) {
+                    showSignInError("TwinSpace: Google sign-in failed — could not start the login service");
+                }
                 if (Log.isLoggable(TAG, Log.VERBOSE)) {
                     Log.v(TAG, "bindService to " + componentName + " failed");
                 }

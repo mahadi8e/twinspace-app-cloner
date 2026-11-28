@@ -123,6 +123,8 @@ class SettingFragment : PreferenceFragmentCompat() {
 
         initExportLog()
 
+        initClearLog()
+
         invalidHideState {
             val rootHidePreference: Preference = (findPreference("root_hide")!!)
             val hideRoot = AppManager.mBlackBoxLoader.hideRoot()
@@ -371,6 +373,38 @@ class SettingFragment : PreferenceFragmentCompat() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error showing export result: ${e.message}")
+            }
+        }.start()
+    }
+
+    /**
+     * TwinSpace, 2026-11-28: "Clear log" (see LogExporter.clear).
+     * Md asked for it because the exported log file keeps growing
+     * (the crash buffer holds hours of old crashes) and a big file
+     * is hard to upload. Tapping it wipes the log buffer and deletes
+     * the previously exported files, so the next export is small and
+     * only has fresh lines. Use it right before reproducing a
+     * problem, then Export log.
+     */
+    private fun initClearLog() {
+        val pref: Preference = (findPreference("clear_log")!!)
+        pref.setOnPreferenceClickListener {
+            clearLog()
+            true
+        }
+    }
+
+    /** Runs the clear off the main thread (logcat + file I/O block). */
+    private fun clearLog() {
+        val ctx = requireContext().applicationContext
+        Thread {
+            val cleared = LogExporter.clear(ctx)
+            try {
+                requireActivity().runOnUiThread {
+                    toast(if (cleared) R.string.clear_log_done else R.string.clear_log_failed)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error showing clear result: ${e.message}")
             }
         }.start()
     }

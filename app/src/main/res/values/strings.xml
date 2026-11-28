@@ -116,5 +116,9 @@
     <string name="export_log">Export log (debug)</string>
     <string name="export_log_summary">Share the TS_BOOT / TS_ACCT log lines for debugging</string>
     <string name="export_log_failed">Could not export the log</string>
+    <string name="clear_log">Clear log</string>
+    <string name="clear_log_summary">Delete the old log lines so the next export stays small</string>
+    <string name="clear_log_done">Log cleared</string>
+    <string name="clear_log_failed">Could not clear the log</string>
 </resources>
 

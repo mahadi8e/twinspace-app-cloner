@@ -54,6 +54,16 @@
                 android:title="@string/export_log"
                 android:summary="@string/export_log_summary" />
 
+        <!-- TwinSpace, 2026-11-28: "Clear log". Md asked for it:
+             the exported log file keeps growing (the crash buffer
+             holds hours of old crashes) and a big file is hard to
+             upload. Tapping it wipes the log buffer and deletes the
+             previously exported files, so the next export is small. -->
+        <Preference
+                android:key="clear_log"
+                android:title="@string/clear_log"
+                android:summary="@string/clear_log_summary" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

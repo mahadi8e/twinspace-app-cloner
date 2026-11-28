@@ -372,6 +372,47 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
+    /**
+     * TwinSpace, 2026-11-28 (TS_BOOT): GMS crashes opening its flags
+     * database ("Failed criticalPathFlagRefreshReceiver") because
+     * android.database.sqlite.SQLiteGlobal.getDefaultSyncMode() falls
+     * through to Resources.getSystem().getString(
+     * R.string.db_default_sync_mode), which throws
+     * ArrayIndexOutOfBoundsException (length=0, index=0) in a guest
+     * process. The GMS process dies, so the authenticator's
+     * addAccount -- which IS reached now -- never returns a result
+     * and sign-in just retries forever.
+     *
+     * SQLiteGlobal has a public static volatile field
+     * sDefaultSyncMode; when it is non-null, getDefaultSyncMode()
+     * returns it immediately and never touches Resources. Setting it
+     * to "FULL" is exactly the framework's own default (the comment
+     * in getDefaultSyncMode says "Use the FULL synchronous mode for
+     * system processes by default", and db_default_sync_mode is
+     * "FULL"). It is a @hide field, so it is set by reflection --
+     * the hidden-API bypass is already active by the time a guest
+     * binds. Idempotent: only set when still null, so a value the
+     * system already chose is never overridden. Runs before the
+     * guest Application.onCreate, so GMS never hits the broken path.
+     * The same field also short-circuits getWALSyncMode().
+     */
+    private static void fixSqliteDefaultSyncMode() {
+        try {
+            Class<?> clazz = Class.forName("android.database.sqlite.SQLiteGlobal");
+            java.lang.reflect.Field field = clazz.getDeclaredField("sDefaultSyncMode");
+            field.setAccessible(true);
+            Object current = field.get(null);
+            if (current == null) {
+                field.set(null, "FULL");
+                Log.e("TS_BOOT", "fixSqliteDefaultSyncMode set sDefaultSyncMode=FULL");
+            } else {
+                Log.e("TS_BOOT", "fixSqliteDefaultSyncMode already set to " + current);
+            }
+        } catch (Throwable e) {
+            Log.e("TS_BOOT", "fixSqliteDefaultSyncMode FAILED", e);
+        }
+    }
+
     public synchronized void handleBindApplication(String packageName, String processName) {
         if (isInit())
             return;
@@ -382,6 +423,14 @@ public class BActivityThread extends IBActivityThread.Stub {
 
         Log.e("TwinSpaceLaunch", "bind pkg=" + packageName + " process=" + processName + " user=" + BActivityThread.getUserId());
         Log.e("TS_BOOT", "handleBindApplication start pkg=" + packageName + " process=" + processName + " user=" + BActivityThread.getUserId());
+        // TwinSpace, 2026-11-28: GMS dies opening its flags database
+        // ("Failed criticalPathFlagRefreshReceiver") because
+        // SQLiteGlobal.getDefaultSyncMode() falls through to
+        // Resources.getSystem().getString(R.string.db_default_sync_mode),
+        // which throws ArrayIndexOutOfBoundsException in a guest
+        // process -- so the authenticator's addAccount never returns
+        // and sign-in just retries forever. Set the default first.
+        fixSqliteDefaultSyncMode();
         PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, BActivityThread.getUserId());
         // TwinSpace: a null packageInfo (virtual user never created/persisted)
         // used to NPE on the next line, killing the guest before any UI.

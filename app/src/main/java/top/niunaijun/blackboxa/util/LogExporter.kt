@@ -35,6 +35,16 @@ object LogExporter {
     private const val TAG = "LogExporter"
 
     /**
+     * TwinSpace, 2026-11-28: caps for the exported file. The log
+     * buffer holds hours of lines and the exported file grows with
+     * every export -- Md uploads it over chat, so it must stay
+     * small. Only the most recent lines are kept; they are the ones
+     * that matter for diagnosis.
+     */
+    private const val MAX_LOG_LINES = 800
+    private const val MAX_CRASH_LINES = 150
+
+    /**
      * Writes the TS_BOOT / TS_ACCT lines to
      * getCacheDir()/twinspace-logs/twinspace-log-<timestamp>.txt and
      * returns the file, or null on failure. When logcat returns no
@@ -84,6 +94,51 @@ object LogExporter {
     }
 
     /**
+     * TwinSpace, 2026-11-28: "Clear log" (Settings). Deletes the old
+     * logs so the next export stays small and easy to upload.
+     *
+     * The exported file grows because the crash buffer keeps every
+     * old crash (hours of FATAL EXCEPTIONs pile up), and Md uploads
+     * the file over chat. Clearing wipes the device's log buffers
+     * (`logcat -c`, main + crash) and deletes the previously
+     * exported .txt files in getCacheDir()/twinspace-logs/, so the
+     * next export only has fresh lines.
+     *
+     * `logcat -c` is best-effort: clearing the buffer can fail
+     * without READ_LOGS (an app may only read its own logs). The old
+     * exported files are always deleted, and the export itself caps
+     * its sections (see below), so the file stays small even when
+     * the buffer clear is refused.
+     *
+     * Must be called off the main thread: `logcat` and file I/O block.
+     * Returns true when the log buffer was cleared.
+     */
+    fun clear(context: Context): Boolean {
+        var cleared = false
+        try {
+            // -c clears the buffer; -b crash clears the crash buffer.
+            val main = Runtime.getRuntime().exec(arrayOf("logcat", "-c"))
+            main.waitFor()
+            val crash = Runtime.getRuntime().exec(arrayOf("logcat", "-b", "crash", "-c"))
+            crash.waitFor()
+            cleared = main.exitValue() == 0 && crash.exitValue() == 0
+        } catch (e: Exception) {
+            Log.e(TAG, "logcat -c failed: ${e.message}")
+        }
+        // Always delete the previously exported files, even when the
+        // buffer clear was refused -- they are the files Md uploads.
+        try {
+            val dir = File(context.cacheDir, "twinspace-logs")
+            dir.listFiles()?.forEach { file ->
+                try { file.delete() } catch (e: Exception) { /* keep going */ }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "deleting old log files failed: ${e.message}")
+        }
+        return cleared
+    }
+
+    /**
      * Shares [file] with an ACTION_SEND intent through the app's
      * FileProvider (${applicationId}.fileprovider). Returns false if
      * the share could not be started.
@@ -118,7 +173,16 @@ object LogExporter {
         }
     }
 
-    /** Reads the log buffer, keeping only TS_BOOT / TS_ACCT lines. */
+    /**
+     * Reads the log buffer, keeping only TS_BOOT / TS_ACCT lines.
+     *
+     * TwinSpace, 2026-11-28: capped to the most recent 800 lines.
+     * The buffer holds hours of lines, and the exported file grows
+     * with every export -- Md uploads it over chat, so a huge file
+     * is a problem. The most recent lines are the ones that matter
+     * for diagnosis (the sign-in attempts are minutes old), so older
+     * lines are dropped.
+     */
     private fun readLogLines(): List<String> {
         val out = ArrayList<String>()
         try {
@@ -135,7 +199,7 @@ object LogExporter {
         } catch (e: Exception) {
             Log.e(TAG, "logcat failed: ${e.message}")
         }
-        return out
+        return if (out.size > MAX_LOG_LINES) out.subList(out.size - MAX_LOG_LINES, out.size) else out
     }
 
     /**
@@ -144,6 +208,12 @@ object LogExporter {
      * (native). An app can read its own crashes here without
      * READ_LOGS, and the guest processes run under the host UID, so
      * their crashes are included. Returns an empty list on failure.
+     *
+     * TwinSpace, 2026-11-28: capped to the most recent 150 lines.
+     * The crash buffer is the part that grows fastest -- every old
+     * crash (hours back) is kept, and the same crash repeats dozens
+     * of times. Only the most recent crashes matter, and capping
+     * keeps the exported file small enough to upload.
      */
     private fun readCrashLines(): List<String> {
         val out = ArrayList<String>()
@@ -160,6 +230,6 @@ object LogExporter {
         } catch (e: Exception) {
             Log.e(TAG, "logcat -b crash failed: ${e.message}")
         }
-        return out
+        return if (out.size > MAX_CRASH_LINES) out.subList(out.size - MAX_CRASH_LINES, out.size) else out
     }
 }

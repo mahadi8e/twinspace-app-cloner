@@ -62,6 +62,10 @@ public class AppServiceDispatcher {
                 service.onRebind(intent);
                 record.setRebind(false);
             }
+            // TwinSpace, 2026-11-29 (TS_BOOT): this early return
+            // used to be silent, so a rebind looked like onBind
+            // never returned. Log it.
+            android.util.Log.e("TS_BOOT", "AppServiceDispatcher.onBind onBind returned cached binder service=" + serviceInfo.name);
             return record.getBinder(intent);
         }
 

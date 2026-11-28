@@ -711,6 +711,12 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 Log.d(TS_ACCT, "IAccountAuthenticator.addAccount type=" + mAccountType);
                 mAuthenticator.addAccount(this, mAccountType, authTokenType, requiredFeatures,
                         options);
+                // TwinSpace, 2026-11-29 (TS_ACCT): the binder call
+                // above is synchronous -- if this line never appears,
+                // the GMS authenticator is hanging INSIDE addAccount.
+                // If it appears but onResult/onError never fire, the
+                // authenticator returned without calling back.
+                Log.d(TS_ACCT, "IAccountAuthenticator.addAccount RETURNED type=" + mAccountType);
             }
 
             @Override
@@ -1881,6 +1887,17 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         @Override
         public void onResult(Bundle result) {
             mNumResults++;
+            // TwinSpace, 2026-11-29 (TS_ACCT): log EVERY callback,
+            // not just ones with a KEY_INTENT -- a null/empty bundle
+            // or an error bundle is silent otherwise, and the Play
+            // Store just retries with no clue why.
+            Log.d(TS_ACCT, "Session.onResult type=" + mAccountType
+                    + " resultNull=" + (result == null)
+                    + " hasIntent=" + (result != null && result.containsKey(AccountManager.KEY_INTENT))
+                    + " hasAccount=" + (result != null && result.containsKey(AccountManager.KEY_ACCOUNT_NAME))
+                    + " errorCode=" + (result != null ? result.getInt(AccountManager.KEY_ERROR_CODE, -1) : -1)
+                    + " errorMsg=" + (result != null ? result.getString(AccountManager.KEY_ERROR_MESSAGE) : "null")
+                    + " keys=" + (result != null ? result.keySet() : "null"));
             Intent intent = null;
             if (result != null) {
                 boolean isSuccessfulConfirmCreds = result.getBoolean(
@@ -1986,6 +2003,9 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         @Override
         public void onError(int errorCode, String errorMessage) {
             mNumErrors++;
+            // TwinSpace, 2026-11-29 (TS_ACCT): onError was silent --
+            // log it so a rejected/failed authenticator call shows.
+            Log.e(TS_ACCT, "Session.onError type=" + mAccountType + " code=" + errorCode + " msg=" + errorMessage);
             IAccountManagerResponse response = getResponseAndClose();
             if (response != null) {
                 if (Log.isLoggable(TAG, Log.VERBOSE)) {

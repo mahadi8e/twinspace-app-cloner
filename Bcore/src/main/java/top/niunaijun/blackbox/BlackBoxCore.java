@@ -1004,8 +1004,32 @@ public class BlackBoxCore extends ClientConfiguration {
             }
             
             ensureProperInitialization();
-            
-            
+
+            // TwinSpace, 2026-11-27: install the __system_property_get
+            // hook (VirtualSpoof) ONLY in guest (clone) processes, via an
+            // explicit JNI call after NativeCore.init() -- never from a
+            // native constructor, never in the main or :black server
+            // process (the old constructor installed it everywhere,
+            // including the host, and a failed hook in the host killed
+            // the app after the splash with no Java trace). The guest
+            // package name is passed so Google packages (gms / gsf /
+            // vending) see the real device identity.
+            if (isBlackProcess()) {
+                try {
+                    if (NativeCore.isLoaded()) {
+                        String guestPkg = getAppPackageName();
+                        Log.e("TS_BOOT", "installVirtualSpoof start pkg=" + guestPkg);
+                        NativeCore.installVirtualSpoof(guestPkg);
+                        Log.e("TS_BOOT", "installVirtualSpoof done pkg=" + guestPkg);
+                    } else {
+                        Log.e("TS_BOOT", "installVirtualSpoof skipped: libblackbox not loaded");
+                    }
+                } catch (Throwable e) {
+                    Log.e("TS_BOOT", "installVirtualSpoof FAILED (continuing): " + e);
+                    Slog.w(TAG, "installVirtualSpoof failed: " + e.getMessage());
+                }
+            }
+
             if (isBlackProcess()) {
                 ContentProviderDelegate.init();
             }

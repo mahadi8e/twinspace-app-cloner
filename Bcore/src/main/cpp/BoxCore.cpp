@@ -14,6 +14,7 @@
 #include <Hook/DexFileHook.h>
 #include <Hook/RuntimeHook.h>
 #include "Utils/HexDump.h"
+#include "Utils/VirtualSpoof.h"
 #include "hidden_api.h"
 
 struct {
@@ -131,12 +132,31 @@ bool disableResourceLoading(JNIEnv *env, jclass clazz) {
     return true;
 }
 
+// TwinSpace, 2026-11-27: install the __system_property_get hook.
+// Explicit JNI call (NativeCore.installVirtualSpoof), only ever made
+// from a guest (clone) process after NativeCore.init() -- never from
+// a constructor, never in the main or :black server process. The
+// package name lets the hook exempt Google packages from the
+// device-identity spoof.
+void installVirtualSpoof(JNIEnv *env, jclass clazz, jstring package_name) {
+    const char *pkg = nullptr;
+    if (package_name != nullptr) {
+        pkg = env->GetStringUTFChars(package_name, JNI_FALSE);
+    }
+    ALOGD("installVirtualSpoof pkg=%s", pkg ? pkg : "(null)");
+    install_virtual_spoof(pkg);
+    if (package_name != nullptr && pkg != nullptr) {
+        env->ReleaseStringUTFChars(package_name, pkg);
+    }
+}
+
 static JNINativeMethod gMethods[] = {
         {"disableHiddenApi", "()Z",                               (void *) disableHiddenApi},
         {"disableResourceLoading", "()Z",                         (void *) disableResourceLoading},
         {"hideXposed", "()V",                                     (void *) hideXposed},
         {"addIORule",  "(Ljava/lang/String;Ljava/lang/String;)V", (void *) addIORule},
         {"enableIO",   "()V",                                     (void *) enableIO},
+        {"installVirtualSpoof", "(Ljava/lang/String;)V",          (void *) installVirtualSpoof},
         {"init",       "(I)V",                                    (void *) init},
 };
 

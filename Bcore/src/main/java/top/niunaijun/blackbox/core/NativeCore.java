@@ -32,17 +32,27 @@ public class NativeCore {
     }
 
     static {
-
+        Log.e("TS_BOOT", "NativeCore.loadLibrary start");
         try {
             System.loadLibrary("blackbox");
             sLoaded = true;
+            Log.e("TS_BOOT", "NativeCore.loadLibrary done");
         } catch (Throwable t) {
+            Log.e("TS_BOOT", "NativeCore.loadLibrary FAILED: " + t);
             Log.e("TwinSpaceLaunch", "NativeCore: libblackbox failed to load, native hooks disabled: " + t);
             sLoaded = false;
         }
     }
 
     public static native void init(int apiLevel);
+
+    // TwinSpace, 2026-11-27: install the __system_property_get hook
+    // (VirtualSpoof). Called explicitly, only in guest (clone)
+    // processes, after init() -- never from a native constructor, never
+    // in the main or :black server process. packageName is the guest
+    // app's package (may be null); Google packages get only the gsm.*
+    // carrier spoof and see the real device identity.
+    public static native void installVirtualSpoof(String packageName);
 
     public static native void enableIO();
 

@@ -250,6 +250,19 @@
     <!-- Play Store / GMS check GET_ACCOUNTS client-side (AccountManager /
          getAccounts); without the declaration the check always fails. -->
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <!-- TwinSpace, 2026-11-28: Play Store startup reads the Gservices
+         provider (com.google.android.gms.gservices.provider
+         .GservicesProvider) during its Application.onCreate Dagger
+         init. The real AMS denies the provider unless the host UID
+         holds READ_GSERVICES (or WRITE_GSERVICES); without it every
+         Play Store launch dies with SecurityException "Permission
+         Denial: opening provider ... GservicesProvider" -> "Failed to
+         execute tasks before Dagger" -> "Unable to makeApplication"
+         (log 2026-11-28 19:56, same crash since 16:03). C4 removed
+         this declaration; the pre-C4 manifest had it and the Play
+         Store reached Sign in. READ_GSERVICES is a normal permission,
+         auto-granted at install when declared. -->
+    <uses-permission android:name="com.google.android.providers.gsf.permission.READ_GSERVICES" />
     <!-- Guest banking / payment / login apps check these before
          BiometricPrompt (USE_BIOMETRIC) or the legacy FingerprintManager
          API (USE_FINGERPRINT). -->

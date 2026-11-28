@@ -57,3 +57,48 @@ jobs:
           name: TwinSpace-release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+  # TwinSpace, 2026-11-28: debug builds are manual-only. This job runs
+  # ONLY on workflow_dispatch (never on push to main), so it never
+  # produces a debug APK unless someone asks for one from the Actions
+  # tab. It is the way to get a debug build for the debug-only
+  # "Export log" action in Settings (BuildConfig.DEBUG is true only in
+  # debug builds). No keystore step: debug builds use the debug key.
+  build-debug:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # Same note as the release job: setup-android defaults to
+          # packages 'tools platform-tools', but the obsolete 'tools'
+          # package no longer exists, so only platform-tools is
+          # requested here.
+          packages: platform-tools
+
+      - name: Install SDK platform, build-tools and NDK
+        run: |
+          sdkmanager --licenses || true
+          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.13846066"
+
+      - name: Build debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TwinSpace-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

@@ -13,7 +13,6 @@ import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.input.input
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
 import top.niunaijun.blackbox.BlackBoxCore
-import top.niunaijun.blackboxa.BuildConfig
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.location.TwinSpaceLocation
@@ -338,18 +337,17 @@ class SettingFragment : PreferenceFragmentCompat() {
     }
 
     /**
-     * TwinSpace, 2026-11-28: debug-only "Export log" (see LogExporter).
-     * Dumps this app's own TS_BOOT / TS_ACCT lines to app-private
-     * storage and shares the file, so the log can be sent without a
-     * PC. Hidden in release builds — BuildConfig.DEBUG is false there,
-     * so the release APK never shows this row at all.
+     * TwinSpace, 2026-11-28: "Export log" (see LogExporter). Dumps
+     * this app's own TS_BOOT / TS_ACCT lines to app-private storage
+     * and shares the file, so the log can be sent without a PC. It
+     * used to be debug-only (hidden when BuildConfig.DEBUG was
+     * false), but Md has no PC, so the row is now shown in release
+     * builds too -- it is the only way to get a guest-crash log off
+     * the phone. It never writes to public Downloads and never
+     * uploads anything; the user chooses where to share the file.
      */
     private fun initExportLog() {
         val pref: Preference = (findPreference("export_log")!!)
-        if (!BuildConfig.DEBUG) {
-            pref.isVisible = false
-            return
-        }
         pref.setOnPreferenceClickListener {
             exportLog()
             true

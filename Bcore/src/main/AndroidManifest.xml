@@ -241,6 +241,25 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.READ_MEDIA_AURAL_USER_SELECTED" />
 
+    <!-- TwinSpace, 2026-11-28: restored after the C4 cleanup. A guest
+         only ever gets a permission if the host manifest declares it
+         (the virtual PM falls through to the real PM against the host
+         UID), so these must be declared for guests that check them
+         client-side via checkSelfPermission. All five are normal
+         permissions, auto-granted to the host at install. -->
+    <!-- Play Store / GMS check GET_ACCOUNTS client-side (AccountManager /
+         getAccounts); without the declaration the check always fails. -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <!-- Guest banking / payment / login apps check these before
+         BiometricPrompt (USE_BIOMETRIC) or the legacy FingerprintManager
+         API (USE_FINGERPRINT). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+    <!-- A cloned launcher setting the wallpaper needs the host UID to
+         hold these (WallpaperManager enforces them on the host UID). -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER_HINTS" />
+
     <application
         android:usesCleartextTraffic="true">
         <provider

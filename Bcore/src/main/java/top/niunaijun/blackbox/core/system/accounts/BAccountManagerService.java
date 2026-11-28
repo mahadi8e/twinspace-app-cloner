@@ -1810,15 +1810,22 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                         "remote exception");
             } catch (SecurityException e) {
                 // TwinSpace, 2026-11-27 (B3): if the authenticator
-                // rejects the caller -- the call comes from the host
-                // server process, not the system uid -- the binder call
-                // throws SecurityException, a RuntimeException that the
+                // rejects the caller, the binder call throws
+                // SecurityException, a RuntimeException that the
                 // RemoteException catch above would miss, and the
                 // session would hang until timeout with no visible
-                // error. Surface it as an error instead. (There is no
-                // wired uid-spoofing mechanism in this codebase to fix
-                // the caller itself: NativeCore.getCallingUid exists but
-                // has zero callers. See the report.)
+                // error. Surface it as an error instead. (Correction
+                // 2026-11-27: the caller IS spoofed. BinderHook.cpp
+                // hooks Binder.getCallingUid() in guest processes and
+                // routes it through BoxCore::getCallingUid to
+                // NativeCore.getCallingUid, which remaps the host
+                // server process's UID to the calling virtual app's
+                // UID (BlackBoxCore.getCallingBUid); and
+                // IActivityManagerProxy.checkPermission auto-grants
+                // ACCOUNT_MANAGER to guests. So a SecurityException
+                // here would mean the authenticator checks something
+                // stricter than the UID/permission, e.g. the system
+                // UID or a signature permission.)
                 Log.e(TS_ACCT, "Session.run SecurityException type=" + mAccountType + " (authenticator rejected the caller?)", e);
                 if ("com.google".equals(mAccountType)) {
                     showSignInError("TwinSpace: Google sign-in blocked — the login service refused the request");

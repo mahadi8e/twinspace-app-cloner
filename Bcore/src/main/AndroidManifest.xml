@@ -268,7 +268,7 @@
          above. Deliberately NOT restored: AUTHENTICATE_ACCOUNTS,
          MANAGE_ACCOUNTS, USE_CREDENTIALS, READ_SOCIAL_STREAM,
          WRITE_SOCIAL_STREAM, SUBSCRIBED_FEEDS_READ,
-         SUBSCRIBED_FEEDS_WRITE, READ_OWNER_DATA, WRITE_OWNER_DATA --
+         SUBSCRIBED_FEEDS_WRITE, READ_OWNER_DATA, WRITE_OWNER_DATA -
          all signature|system, so the system never grants them to a
          non-system host app; declaring them would be a no-op for a
          guest. USE_SIP was also skipped (dangerous but obsolete; no

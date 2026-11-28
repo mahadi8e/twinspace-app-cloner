@@ -3,8 +3,8 @@ package top.niunaijun.blackboxa.data
 import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import top.niunaijun.blackbox.BlackBoxCore
-import top.niunaijun.blackbox.core.system.accounts.BAccountManagerService
 import top.niunaijun.blackbox.core.system.user.BUserInfo
+import top.niunaijun.blackbox.fake.frameworks.BAccountManager
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.bean.GmsBean
@@ -81,10 +81,20 @@ class GmsRepository {
      * Google sign-in to work; an empty list (or one without com.google)
      * is exactly why tapping "Sign in" in the cloned Play Store does
      * nothing. Runs on the caller's (IO) thread; always posts.
+     *
+     * Correction 2026-11-27: the authenticator cache lives in the
+     * :black SERVER process. The old code called the static
+     * BAccountManagerService.getCachedAuthenticatorTypes(), which reads
+     * the MAIN process's own (empty, never-started) service singleton
+     * and always returned an empty list here -- so the "Google
+     * authenticator not found" line was a FALSE NEGATIVE. Ask the
+     * server over the binder instead (BAccountManager is already
+     * proxied to the server's getAuthenticatorTypes()).
      */
     fun getAuthenticatorTypes(mAuthenticatorTypesLiveData: MutableLiveData<List<String>>) {
         val types = try {
-            BAccountManagerService.getCachedAuthenticatorTypes()
+            BAccountManager.get().getAuthenticatorTypes()
+                ?.mapNotNull { it?.type } ?: emptyList()
         } catch (e: Exception) {
             Log.e(TAG, "getAuthenticatorTypes failed: ${e.message}")
             emptyList<String>()

@@ -1,14 +1,16 @@
 package top.niunaijun.blackbox.core;
 
+import android.accounts.AuthenticatorDescription;
 import android.content.pm.PackageManager;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import top.niunaijun.blackbox.BlackBoxCore;
-import top.niunaijun.blackbox.core.system.accounts.BAccountManagerService;
 import top.niunaijun.blackbox.entity.pm.InstallResult;
+import top.niunaijun.blackbox.fake.frameworks.BAccountManager;
 
 
 public class GmsCore {
@@ -142,13 +144,26 @@ public class GmsCore {
      * whether the in-VA authenticator cache actually contains
      * com.google. If it does not, tapping "Sign in" in the cloned
      * Play Store will do nothing (addAccount fails with "bind
-     * failure") no matter what else installed fine. Uses the same
-     * cache read the GMS Manager diagnostic shows (tag TS_ACCT, so it
-     * appears in the same logcat filter as the sign-in trace).
+     * failure") no matter what else installed fine. (Tag TS_ACCT, so
+     * it appears in the same logcat filter as the sign-in trace.)
+     *
+     * Correction 2026-11-27: this runs in the MAIN process, so the old
+     * code's static BAccountManagerService.getCachedAuthenticatorTypes()
+     * read the main process's own empty singleton and always reported
+     * MISSING -- a false negative. Ask the :black server over the
+     * binder instead (BAccountManager.get().getAuthenticatorTypes()).
      */
     private static void logAuthenticatorSelfCheck() {
         try {
-            List<String> types = BAccountManagerService.getCachedAuthenticatorTypes();
+            AuthenticatorDescription[] descs = BAccountManager.get().getAuthenticatorTypes();
+            List<String> types = new ArrayList<>();
+            if (descs != null) {
+                for (AuthenticatorDescription desc : descs) {
+                    if (desc != null && desc.type != null) {
+                        types.add(desc.type);
+                    }
+                }
+            }
             if (types.contains("com.google")) {
                 android.util.Log.d("TS_ACCT", "GmsCore self-check: com.google authenticator FOUND after GMS install (" + types + ")");
             } else {

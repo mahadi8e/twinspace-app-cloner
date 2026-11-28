@@ -1438,6 +1438,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * TwinSpace, 2026-11-27: SERVER PROCESS ONLY. This runs on the
+     * :black service instance (systemReady / package monitor). Never
+     * call it from the main process -- the service singleton there is
+     * empty, so a static wrapper around it always reported an empty
+     * cache (the GMS Manager "authenticator not found" false
+     * negative). Non-server callers must ask the server over the
+     * binder: BAccountManager.get().getAuthenticatorTypes().
+     */
     public void loadAuthenticatorCache(String packageName) {
         // TwinSpace, 2026-11-27: only clear the whole cache on a full
         // refresh (packageName == null). On a single-package refresh
@@ -1454,8 +1463,16 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         if (packageName != null) {
             intent.setPackage(packageName);
         }
+        // TwinSpace, 2026-11-27 (TS_ACCT trace): record what the
+        // intent query actually returns in the SERVER process, so a
+        // missing com.google can be traced to the query or to the
+        // direct-scan fallback below instead of guessed at.
+        List<ResolveInfo> queried = mPms.queryIntentServices(intent,
+                PackageManager.GET_META_DATA, BUserHandle.USER_ALL);
+        Log.d("TS_ACCT", "loadAuthenticatorCache(" + packageName + "): queryIntentServices(ACTION_AUTHENTICATOR_INTENT) returned "
+                + (queried == null ? "null" : queried.size() + " services"));
         generateServicesMap(
-                mPms.queryIntentServices(intent, PackageManager.GET_META_DATA, BUserHandle.USER_ALL),
+                queried,
                 mAuthenticatorCache.authenticators, new RegisteredServicesParser());
         // TwinSpace, 2026-11-27: fallback -- the intent query above came
         // back empty on a real device even with GMS installed (the GMS
@@ -1505,6 +1522,12 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         try {
             PackageInfo pi = mPms.getPackageInfo(packageName,
                     PackageManager.GET_SERVICES, userId);
+            // TwinSpace, 2026-11-27 (TS_ACCT trace): record what the
+            // direct scan actually sees in the SERVER process for this
+            // package, so a missing com.google can be traced to the
+            // package info, the service list, or the match itself.
+            Log.d("TS_ACCT", "registerGoogleAuthenticator(" + packageName + ", userId=" + userId + "): getPackageInfo(GET_SERVICES) services="
+                    + (pi == null ? "null PackageInfo" : (pi.services == null ? "null" : pi.services.length)));
             if (pi != null && pi.services != null) {
                 RegisteredServicesParser accountParser = new RegisteredServicesParser();
                 for (ServiceInfo si : pi.services) {
@@ -1546,11 +1569,12 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                                 + " as com.google directly (no usable authenticator XML)");
                     }
                     mAuthenticatorCache.authenticators.put(desc.type, new AuthenticatorInfo(desc, si));
-                    Log.d(TAG, "registerGoogleAuthenticator: registered " + desc.type
+                    Log.d("TS_ACCT", "registerGoogleAuthenticator: registered " + desc.type
                             + " from " + si.packageName + "/" + si.name);
                     return;
                 }
             }
+            Log.d("TS_ACCT", "registerGoogleAuthenticator(" + packageName + "): no authenticator service matched in the service list, trying the explicit component");
             // Last resort: look the known GMS authenticator service up
             // by its explicit component, in case the package's service
             // list itself is empty.
@@ -1561,10 +1585,13 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 AuthenticatorDescription desc = new AuthenticatorDescription("com.google",
                         si.packageName, 0, 0, 0, 0, true);
                 mAuthenticatorCache.authenticators.put(desc.type, new AuthenticatorInfo(desc, si));
-                Log.d(TAG, "registerGoogleAuthenticator: registered com.google by explicit component "
+                Log.d("TS_ACCT", "registerGoogleAuthenticator: registered com.google by explicit component "
                         + si.packageName + "/" + si.name);
+            } else {
+                Log.w("TS_ACCT", "registerGoogleAuthenticator(" + packageName + "): explicit GoogleAccountAuthenticatorService component NOT found -- com.google will stay missing");
             }
         } catch (Exception e) {
+            Log.e("TS_ACCT", "registerGoogleAuthenticator(" + packageName + ") failed", e);
             e.printStackTrace();
         }
     }
@@ -1589,30 +1616,6 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
             e.printStackTrace();
         }
         return 0;
-    }
-
-    /**
-     * TwinSpace, 2026-11-27: diagnostic for the GMS Manager screen --
-     * which account-authenticator types the virtual PackageManager
-     * actually discovered from the in-VA Google install. Refreshes the
-     * cache first so the answer reflects the current install. Empty
-     * when the service is not ready or nothing was found; "com.google"
-     * must be in here for Google sign-in (addAccount) to work at all.
-     */
-    public static List<String> getCachedAuthenticatorTypes() {
-        try {
-            BAccountManagerService service = sService;
-            if (service == null) {
-                return new ArrayList<>();
-            }
-            service.loadAuthenticatorCache(null);
-            synchronized (service.mAuthenticatorCache.authenticators) {
-                return new ArrayList<>(service.mAuthenticatorCache.authenticators.keySet());
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "getCachedAuthenticatorTypes failed: " + e.getMessage());
-            return new ArrayList<>();
-        }
     }
 
     private void generateServicesMap(List<ResolveInfo> services, Map<String, AuthenticatorInfo> map,

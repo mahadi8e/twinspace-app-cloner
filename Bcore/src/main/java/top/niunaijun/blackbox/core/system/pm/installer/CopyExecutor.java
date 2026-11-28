@@ -33,8 +33,20 @@ public class CopyExecutor implements Executor {
      * Step 2 (native-lib extraction): set
      * ENABLE_SYSTEM_SPLIT_NATIVE_LIB = true.
      * Non-system (user-app) installs are unaffected by these flags.
+     *
+     * 2026-11-29: Step 1 ENABLED. The 01:16 log proves the GMS
+     * authenticator's addAccount RETURNS immediately (same ms) without
+     * ever calling onResult/onError -- it is a no-op. The likely cause
+     * is the missing Auth/Dynamite module: GMS's auth code lives in the
+     * DynamiteModulesA/C splits, which were never copied into the guest,
+     * so the authenticator fails fast loading the module and returns
+     * silently. Copying the host's splits at install time should let it
+     * load. NOTE: this only takes effect on a FRESH system install of
+     * GMS -- toggle Google services OFF then ON in GMS Manager (or
+     * reinstall GMS) after installing this build, or the old
+     * split-less install stays. Step 2 (native libs) stays OFF.
      */
-    public static final boolean ENABLE_SYSTEM_SPLIT_COPY = false;
+    public static final boolean ENABLE_SYSTEM_SPLIT_COPY = true;
     public static final boolean ENABLE_SYSTEM_SPLIT_NATIVE_LIB = false;
 
     @Override

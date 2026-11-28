@@ -79,6 +79,14 @@ android {
     }
     buildFeatures {
         viewBinding true
+        // TwinSpace, 2026-11-28: BuildConfig must be generated explicitly.
+        // AGP 8.13 does NOT generate it for this app module by default
+        // (the generateReleaseBuildConfig task never runs without this),
+        // so SettingFragment's BuildConfig.DEBUG check failed to compile
+        // with "Unresolved reference: BuildConfig". This is the only
+        // module that uses BuildConfig (the Export log gate); Bcore
+        // does not, so it needs no change there.
+        buildConfig true
     }
     kotlinOptions {
         jvmTarget = '21'

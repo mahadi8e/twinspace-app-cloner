@@ -969,8 +969,6 @@ public class BlackBoxCore extends ClientConfiguration {
         }
         
         
-        initVpnService();
-
         // TwinSpace: HookManager.init() was unguarded — a hook constructor
         // throwing an Error here killed the host process inside
         // attachBaseContext, before MainActivity, with no Java trace.
@@ -1094,53 +1092,8 @@ public class BlackBoxCore extends ClientConfiguration {
     
     
     
-    public boolean hasStoragePermission() {
-        return StoragePermissionHelper.hasStoragePermission(sContext);
-    }
-    
-    
     public boolean hasAllFilesAccess() {
         return StoragePermissionHelper.hasAllFilesAccess();
-    }
-    
-    
-    public boolean hasFullFileAccess() {
-        return StoragePermissionHelper.hasFullFileAccess(sContext);
-    }
-    
-    
-    public void requestStoragePermission(android.app.Activity activity) {
-        StoragePermissionHelper.requestStoragePermission(activity);
-    }
-    
-    
-    public void requestAllFilesAccess(android.app.Activity activity) {
-        StoragePermissionHelper.requestAllFilesAccess(activity);
-    }
-    
-    
-    public void requestFullFileAccess(android.app.Activity activity) {
-        StoragePermissionHelper.requestFullFileAccess(activity);
-    }
-    
-    
-    public boolean handleStoragePermissionResult(android.app.Activity activity, int requestCode, 
-            String[] permissions, int[] grantResults) {
-        return StoragePermissionHelper.handlePermissionResult(activity, requestCode, permissions, grantResults);
-    }
-    
-    
-    public boolean handleAllFilesAccessResult(int requestCode) {
-        return StoragePermissionHelper.handleAllFilesAccessResult(requestCode);
-    }
-    
-    
-    public static int getStoragePermissionRequestCode() {
-        return StoragePermissionHelper.REQUEST_CODE_STORAGE_PERMISSION;
-    }
-    
-    public static int getAllFilesAccessRequestCode() {
-        return StoragePermissionHelper.REQUEST_CODE_MANAGE_STORAGE;
     }
 
     public boolean launchApk(String packageName, int userId) {
@@ -1637,16 +1590,6 @@ public class BlackBoxCore extends ClientConfiguration {
     }
     
     
-    private void initVpnService() {
-        // TwinSpace: the VPN is now a real WireGuard tunnel managed by the
-        // app module (TwinSpaceVpn, GoBackend). The old ProxyVpnService only
-        // opened a TUN and never forwarded a packet, so starting it here
-        // would blackhole the clones' traffic. Do not start it. The app
-        // module starts/stops the tunnel from the use_vpn_network flag.
-        Slog.d(TAG, "VPN managed by TwinSpaceVpn (WireGuard) in the app module, skipping ProxyVpnService");
-    }
-    
-    
     private static void ensureProperInitialization() {
         try {
             
@@ -1997,106 +1940,9 @@ public class BlackBoxCore extends ClientConfiguration {
             tryAlternativeServerStartupMethods();
         }
     }
-    public interface LogSendListener {
-        void onSuccess();
-        void onFailure(String error);
-    }
-
-    public void sendLogs(String caption, boolean async) {
-        sendLogs(caption, async, null);
-    }
-
-    public void sendLogs(String caption, boolean async, LogSendListener listener) {
-        // TwinSpace: crash/log sending is disabled. Never build a log file,
-        // never dump logcat or device info, and never call LogSender, so
-        // nothing leaves the device. Local crash handling is unchanged.
-        Slog.d(TAG, "Log sending is disabled, not uploading logs");
-        if (listener != null) {
-            try {
-                new Handler(Looper.getMainLooper()).post(() -> listener.onFailure("Log sending is disabled"));
-            } catch (Exception e) {
-                // Ignore: there is no upload to report on.
-            }
-        }
-    }
-
-    private String getDeviceInfoString() {
-        StringBuilder sb = new StringBuilder();
-        try {
-            sb.append("DEVICE INFORMATION\n");
-            sb.append("------------------\n");
-            
-            
-            sb.append("Android Version: ").append(Build.VERSION.RELEASE).append("\n");
-            sb.append("SDK Level: ").append(Build.VERSION.SDK_INT).append("\n");
-            sb.append("Build ID: ").append(Build.ID).append("\n");
-            sb.append("Build Display: ").append(Build.DISPLAY).append("\n");
-            
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                sb.append("Security Patch: ").append(Build.VERSION.SECURITY_PATCH).append("\n");
-            }
-            
-            
-            sb.append("Manufacturer: ").append(Build.MANUFACTURER).append("\n");
-            sb.append("Brand: ").append(Build.BRAND).append("\n");
-            sb.append("Model: ").append(Build.MODEL).append("\n");
-            sb.append("Device: ").append(Build.DEVICE).append("\n");
-            sb.append("Product: ").append(Build.PRODUCT).append("\n");
-            sb.append("Board: ").append(Build.BOARD).append("\n");
-            sb.append("Hardware: ").append(Build.HARDWARE).append("\n");
-            
-            
-            sb.append("Supported ABIs: ").append(String.join(", ", Build.SUPPORTED_ABIS)).append("\n");
-            if (Build.SUPPORTED_32_BIT_ABIS.length > 0) {
-                sb.append("32-bit ABIs: ").append(String.join(", ", Build.SUPPORTED_32_BIT_ABIS)).append("\n");
-            }
-            if (Build.SUPPORTED_64_BIT_ABIS.length > 0) {
-                sb.append("64-bit ABIs: ").append(String.join(", ", Build.SUPPORTED_64_BIT_ABIS)).append("\n");
-            }
-            
-
-
-
-            
-            try {
-                Runtime runtime = Runtime.getRuntime();
-                long maxMem = runtime.maxMemory() / (1024 * 1024);
-                long totalMem = runtime.totalMemory() / (1024 * 1024);
-                long freeMem = runtime.freeMemory() / (1024 * 1024);
-                sb.append("Max Heap: ").append(maxMem).append(" MB\n");
-                sb.append("Total Heap: ").append(totalMem).append(" MB\n");
-                sb.append("Free Heap: ").append(freeMem).append(" MB\n");
-                sb.append("Used Heap: ").append(totalMem - freeMem).append(" MB\n");
-            } catch (Exception e) {
-                sb.append("Memory info unavailable: ").append(e.getMessage()).append("\n");
-            }
-            
-            
-            try {
-                Context context = getContext();
-                if (context != null) {
-                    sb.append("Package: ").append(context.getPackageName()).append("\n");
-                    android.content.pm.PackageInfo pInfo = context.getPackageManager()
-                            .getPackageInfo(context.getPackageName(), 0);
-                    sb.append("App Version: ").append(pInfo.versionName).append("\n");
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        sb.append("Version Code: ").append(pInfo.getLongVersionCode()).append("\n");
-                    } else {
-                        sb.append("Version Code: ").append(pInfo.versionCode).append("\n");
-                    }
-                }
-            } catch (Exception e) {
-                sb.append("App info unavailable: ").append(e.getMessage()).append("\n");
-            }
-            
-            
-            sb.append("Timestamp: ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", 
-                    java.util.Locale.getDefault()).format(new java.util.Date())).append("\n");
-            
-        } catch (Exception e) {
-            sb.append("Failed to build device info: ").append(e.getMessage());
-        }
-        return sb.toString();
-    }
+    // TwinSpace: log upload is deliberately disabled and the code is
+    // gone (sendLogs / LogSendListener / getDeviceInfoString deleted
+    // 2026-11-27 -- zero callers). Crash logs are local only
+    // (CrashMonitor) and are never sent anywhere -- do not re-add a
+    // sendLogs / LogSender path.
 }

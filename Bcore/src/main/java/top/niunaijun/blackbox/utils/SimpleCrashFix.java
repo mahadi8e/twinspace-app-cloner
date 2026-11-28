@@ -19,8 +19,6 @@ public class SimpleCrashFix {
             installGlobalExceptionHandler();
 
 
-            installContextWrapperHook();
-
             sIsInstalled = true;
             Slog.d(TAG, "Essential crash fix installed successfully");
         } catch (Exception e) {
@@ -62,17 +60,6 @@ public class SimpleCrashFix {
             Slog.d(TAG, "Global exception handler installed successfully");
         } catch (Exception e) {
             Slog.e(TAG, "Failed to install global exception handler: " + e.getMessage(), e);
-        }
-    }
-
-
-    private static void installContextWrapperHook() {
-        try {
-
-            ContextWrapperHook.installHook();
-            Slog.d(TAG, "Context wrapper hook installed");
-        } catch (Exception e) {
-            Slog.e(TAG, "Failed to install context wrapper hook: " + e.getMessage(), e);
         }
     }
 }

@@ -13,7 +13,6 @@
 #include <Hook/BinderHook.h>
 #include <Hook/DexFileHook.h>
 #include <Hook/RuntimeHook.h>
-#include "Utils/HexDump.h"
 #include "Utils/VirtualSpoof.h"
 #include "hidden_api.h"
 

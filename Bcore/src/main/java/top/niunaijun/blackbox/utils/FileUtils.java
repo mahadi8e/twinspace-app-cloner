@@ -17,14 +17,11 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class FileUtils {
 
@@ -334,138 +331,6 @@ public class FileUtils {
 
     public static boolean canRead(String path) {
         return new File(path).canRead();
-    }
-
-    public interface FileMode {
-        int MODE_ISUID = 04000;
-        int MODE_ISGID = 02000;
-        int MODE_ISVTX = 01000;
-        int MODE_IRUSR = 00400;
-        int MODE_IWUSR = 00200;
-        int MODE_IXUSR = 00100;
-        int MODE_IRGRP = 00040;
-        int MODE_IWGRP = 00020;
-        int MODE_IXGRP = 00010;
-        int MODE_IROTH = 00004;
-        int MODE_IWOTH = 00002;
-        int MODE_IXOTH = 00001;
-
-        int MODE_755 = MODE_IRUSR | MODE_IWUSR | MODE_IXUSR
-                | MODE_IRGRP | MODE_IXGRP
-                | MODE_IROTH | MODE_IXOTH;
-    }
-
-    
-    public static class FileLock {
-        private static FileLock singleton;
-        private Map<String, FileLockCount> mRefCountMap = new ConcurrentHashMap<String, FileLockCount>();
-
-        public static FileLock getInstance() {
-            if (singleton == null) {
-                singleton = new FileLock();
-            }
-            return singleton;
-        }
-
-        private int RefCntInc(String filePath, java.nio.channels.FileLock fileLock, RandomAccessFile randomAccessFile,
-                              FileChannel fileChannel) {
-            int refCount;
-            if (this.mRefCountMap.containsKey(filePath)) {
-                FileLockCount fileLockCount = this.mRefCountMap.get(filePath);
-                int i = fileLockCount.mRefCount;
-                fileLockCount.mRefCount = i + 1;
-                refCount = i;
-            } else {
-                refCount = 1;
-                this.mRefCountMap.put(filePath, new FileLockCount(fileLock, refCount, randomAccessFile, fileChannel));
-
-            }
-            return refCount;
-        }
-
-        private int RefCntDec(String filePath) {
-            int refCount = 0;
-            if (this.mRefCountMap.containsKey(filePath)) {
-                FileLockCount fileLockCount = this.mRefCountMap.get(filePath);
-                int i = fileLockCount.mRefCount - 1;
-                fileLockCount.mRefCount = i;
-                refCount = i;
-                if (refCount <= 0) {
-                    this.mRefCountMap.remove(filePath);
-                }
-            }
-            return refCount;
-        }
-
-        public boolean LockExclusive(File targetFile) {
-
-            if (targetFile == null) {
-                return false;
-            }
-            try {
-                File lockFile = new File(targetFile.getParentFile().getAbsolutePath().concat("/lock"));
-                if (!lockFile.exists()) {
-                    lockFile.createNewFile();
-                }
-                RandomAccessFile randomAccessFile = new RandomAccessFile(lockFile.getAbsolutePath(), "rw");
-                FileChannel channel = randomAccessFile.getChannel();
-                java.nio.channels.FileLock lock = channel.lock();
-                if (!lock.isValid()) {
-                    return false;
-                }
-                RefCntInc(lockFile.getAbsolutePath(), lock, randomAccessFile, channel);
-                return true;
-            } catch (Exception e) {
-                return false;
-            }
-        }
-
-        
-        public void unLock(File targetFile) {
-
-            File lockFile = new File(targetFile.getParentFile().getAbsolutePath().concat("/lock"));
-            if (!lockFile.exists()) {
-                return;
-            }
-            if (this.mRefCountMap.containsKey(lockFile.getAbsolutePath())) {
-                FileLockCount fileLockCount = this.mRefCountMap.get(lockFile.getAbsolutePath());
-                if (fileLockCount != null) {
-                    java.nio.channels.FileLock fileLock = fileLockCount.mFileLock;
-                    RandomAccessFile randomAccessFile = fileLockCount.fOs;
-                    FileChannel fileChannel = fileLockCount.fChannel;
-                    try {
-                        if (RefCntDec(lockFile.getAbsolutePath()) <= 0) {
-                            if (fileLock != null && fileLock.isValid()) {
-                                fileLock.release();
-                            }
-                            if (randomAccessFile != null) {
-                                randomAccessFile.close();
-                            }
-                            if (fileChannel != null) {
-                                fileChannel.close();
-                            }
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-
-        private class FileLockCount {
-            FileChannel fChannel;
-            RandomAccessFile fOs;
-            java.nio.channels.FileLock mFileLock;
-            int mRefCount;
-
-            FileLockCount(java.nio.channels.FileLock fileLock, int mRefCount, RandomAccessFile fOs,
-                          FileChannel fChannel) {
-                this.mFileLock = fileLock;
-                this.mRefCount = mRefCount;
-                this.fOs = fOs;
-                this.fChannel = fChannel;
-            }
-        }
     }
 
     private static String getDataColumn(Context context, Uri uri, String selection, String[] selectionArgs) {

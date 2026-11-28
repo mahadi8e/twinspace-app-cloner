@@ -221,7 +221,7 @@ public class BActivityThread extends IBActivityThread.Stub {
             // split missing?).
             Log.e("TS_BOOT", "createService loadClass FAILED service=" + serviceInfo.name
                     + " pkg=" + serviceInfo.packageName
-                    + " boundPkg=" + (mBoundApplication != null && mBoundApplication.info != null ? mBoundApplication.info.packageName : "null")
+                    + " boundPkg=" + (mBoundApplication != null && mBoundApplication.appInfo != null ? mBoundApplication.appInfo.packageName : "null")
                     + " classLoader=" + classLoader, e);
             if (serviceInfo.name.contains("google.android.gms") ||
                 serviceInfo.name.contains("google.android.location")) {

@@ -211,8 +211,19 @@ public class BActivityThread extends IBActivityThread.Stub {
         try {
             service = (Service) classLoader.loadClass(serviceInfo.name).newInstance();
         } catch (ClassNotFoundException e) {
-            
-            if (serviceInfo.name.contains("google.android.gms") || 
+            // TwinSpace, 2026-11-28 (TS_BOOT): a GMS service that
+            // cannot be loaded silently kills Google sign-in -- the
+            // authenticator (GoogleAccountAuthenticatorService) is
+            // created here, and a null return means onServiceConnected
+            // never fires, so addAccount just retries forever. Log the
+            // failure loudly instead of only Slog.w, so the log shows
+            // WHY the class could not be loaded (wrong class loader?
+            // split missing?).
+            Log.e("TS_BOOT", "createService loadClass FAILED service=" + serviceInfo.name
+                    + " pkg=" + serviceInfo.packageName
+                    + " boundPkg=" + (mBoundApplication != null && mBoundApplication.info != null ? mBoundApplication.info.packageName : "null")
+                    + " classLoader=" + classLoader, e);
+            if (serviceInfo.name.contains("google.android.gms") ||
                 serviceInfo.name.contains("google.android.location")) {
                 Slog.w(TAG, "Google Play Services class not found, skipping: " + serviceInfo.name);
                 return null;
@@ -222,6 +233,8 @@ public class BActivityThread extends IBActivityThread.Stub {
                     + ": " + e.toString());
             return null;
         } catch (Exception e) {
+            Log.e("TS_BOOT", "createService instantiate FAILED service=" + serviceInfo.name
+                    + " pkg=" + serviceInfo.packageName, e);
             e.printStackTrace();
             Slog.e(TAG, "Unable to instantiate service " + serviceInfo.name
                     + ": " + e.toString());
@@ -246,8 +259,12 @@ public class BActivityThread extends IBActivityThread.Stub {
             service.onCreate();
             return service;
         } catch (Exception e) {
-            
-            if (serviceInfo.name.contains("google.android.gms") || 
+            // TwinSpace, 2026-11-28 (TS_BOOT): same silent-kill as
+            // above -- if the GMS authenticator's onCreate throws, the
+            // service is dropped and sign-in never connects. Log it.
+            Log.e("TS_BOOT", "createService onCreate FAILED service=" + serviceInfo.name
+                    + " pkg=" + serviceInfo.packageName, e);
+            if (serviceInfo.name.contains("google.android.gms") ||
                 serviceInfo.name.contains("google.android.location")) {
                 Slog.w(TAG, "Google Play Services service creation failed, skipping: " + serviceInfo.name);
                 return null;

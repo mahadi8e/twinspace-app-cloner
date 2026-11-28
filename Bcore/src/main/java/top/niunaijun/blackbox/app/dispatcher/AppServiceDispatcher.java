@@ -38,14 +38,21 @@ public class AppServiceDispatcher {
         Intent intent = serviceRecord.mServiceIntent;
         ServiceInfo serviceInfo = serviceRecord.mServiceInfo;
 
-        if (intent == null || serviceInfo == null)
+        if (intent == null || serviceInfo == null) {
+            android.util.Log.e("TS_BOOT", "AppServiceDispatcher.onBind NULL record intent=" + intent + " serviceInfo=" + serviceInfo);
             return null;
+        }
 
-
+        // TwinSpace, 2026-11-28 (TS_BOOT): trace the authenticator
+        // bind -- if this returns null, onServiceConnected never fires
+        // and Google sign-in just retries forever.
+        android.util.Log.e("TS_BOOT", "AppServiceDispatcher.onBind service=" + serviceInfo.name + " pkg=" + serviceInfo.packageName);
 
         Service service = getOrCreateService(serviceRecord);
-        if (service == null)
+        if (service == null) {
+            android.util.Log.e("TS_BOOT", "AppServiceDispatcher.onBind getOrCreateService NULL service=" + serviceInfo.name);
             return null;
+        }
         intent.setExtrasClassLoader(service.getClassLoader());
 
         ServiceRecord record = findRecord(intent);
@@ -60,9 +67,11 @@ public class AppServiceDispatcher {
 
         try {
             IBinder iBinder = service.onBind(intent);
+            android.util.Log.e("TS_BOOT", "AppServiceDispatcher.onBind onBind returned " + (iBinder == null ? "NULL" : "binder") + " service=" + serviceInfo.name);
             record.addBinder(intent, iBinder);
             return iBinder;
         } catch (Throwable e) {
+            android.util.Log.e("TS_BOOT", "AppServiceDispatcher.onBind onBind THREW service=" + serviceInfo.name, e);
             e.printStackTrace();
         }
         return null;

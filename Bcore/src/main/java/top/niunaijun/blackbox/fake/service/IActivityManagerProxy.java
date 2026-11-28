@@ -355,11 +355,17 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             int userId = intent.getIntExtra("_B_|_UserId", -1);
             userId = userId == -1 ? BActivityThread.getUserId() : userId;
             ResolveInfo resolveInfo = BlackBoxCore.getBPackageManager().resolveService(intent, 0, resolvedType, userId);
+            // TwinSpace, 2026-11-28 (TS_BOOT): if the virtual PM cannot
+            // resolve the service, the virtual bind is skipped entirely
+            // and the real AMS bind runs instead -- which would explain
+            // a bind that returns ok=true but never connects.
+            android.util.Log.e("TS_BOOT", "BindServiceCommon intent=" + intent.getComponent() + " resolveService=" + (resolveInfo != null ? resolveInfo.serviceInfo.name : "NULL") + " user=" + userId);
             if (resolveInfo != null || AppSystemEnv.isOpenPackage(intent.getComponent())) {
                 Intent proxyIntent = BlackBoxCore.getBActivityManager().bindService(intent,
                         connection == null ? null : connection.asBinder(),
                         resolvedType,
                         userId);
+                android.util.Log.e("TS_BOOT", "BindServiceCommon virtual bindService returned proxyIntent=" + (proxyIntent != null ? proxyIntent.getComponent() : "NULL") + " for " + intent.getComponent());
                 if (connection != null) {
                     if (intent.getComponent() == null && resolveInfo != null) {
                         intent.setComponent(new ComponentName(resolveInfo.serviceInfo.packageName, resolveInfo.serviceInfo.name));

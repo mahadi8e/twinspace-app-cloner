@@ -383,6 +383,14 @@ public class BActivityThread extends IBActivityThread.Stub {
                 + " sourceDir=" + applicationInfo.sourceDir
                 + " nativeLibraryDir=" + applicationInfo.nativeLibraryDir
                 + " splitSourceDirs=" + Arrays.toString(applicationInfo.splitSourceDirs));
+        if (packageInfo.providers == null) {
+            packageInfo.providers = new ProviderInfo[]{};
+        }
+        mProviders.addAll(Arrays.asList(packageInfo.providers));
+
+        Object boundApplication = BRActivityThread.get(BlackBoxCore.mainThread()).mBoundApplication();
+
+        Context packageContext = createPackageContext(applicationInfo);
         // TwinSpace, 2026-11-28 (TS_BOOT, information only -- no
         // behaviour change): log the guest's ApplicationInfo.flags
         // (is FLAG_SYSTEM set for a system-installed GMS/Vending?
@@ -390,7 +398,8 @@ public class BActivityThread extends IBActivityThread.Stub {
         // (flags & 129) != 0, i.e. FLAG_SYSTEM|FLAG_UPDATED_SYSTEM_APP)
         // and the ANDROID_ID the guest sees (per-space device ID is a
         // gap vs the reference). Only for the Google packages, to keep
-        // the log quiet.
+        // the log quiet. Placed here (not earlier) because
+        // packageContext does not exist until this line.
         if ("com.android.vending".equals(packageName) || "com.google.android.gms".equals(packageName)) {
             int appFlags = applicationInfo.flags;
             String androidId = null;
@@ -406,14 +415,6 @@ public class BActivityThread extends IBActivityThread.Stub {
                     + " (flags&129)=" + (appFlags & 129)
                     + " ANDROID_ID=" + androidId);
         }
-        if (packageInfo.providers == null) {
-            packageInfo.providers = new ProviderInfo[]{};
-        }
-        mProviders.addAll(Arrays.asList(packageInfo.providers));
-
-        Object boundApplication = BRActivityThread.get(BlackBoxCore.mainThread()).mBoundApplication();
-
-        Context packageContext = createPackageContext(applicationInfo);
         Object loadedApk = BRContextImpl.get(packageContext).mPackageInfo();
         BRLoadedApk.get(loadedApk)._set_mSecurityViolation(false);
         

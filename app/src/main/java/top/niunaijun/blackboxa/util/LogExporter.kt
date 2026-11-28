@@ -11,11 +11,15 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * TwinSpace, 2026-11-28: debug-only "Export log" (Settings).
+ * TwinSpace, 2026-11-28: "Export log" (Settings).
  *
- * Dumps this app's own TS_BOOT / TS_ACCT log lines to a file in
- * app-private storage (getCacheDir()/twinspace-logs/) and shares it
- * through a FileProvider, so the log can be sent without a PC.
+ * Dumps this app's own TS_BOOT / TS_ACCT log lines plus the crash
+ * buffer to a file in app-private storage
+ * (getCacheDir()/twinspace-logs/) and shares it through a
+ * FileProvider, so the log can be sent without a PC. It used to be
+ * debug-only; it is now shown in release builds too because Md has
+ * no PC and this is the only way to get a guest-crash log off the
+ * phone.
  *
  * Privacy: the file lives in app-private cache only — never public
  * Downloads, never external storage — and it is shared only through
@@ -42,6 +46,7 @@ object LogExporter {
     fun export(context: Context): File? {
         return try {
             val lines = readLogLines()
+            val crashLines = readCrashLines()
             val dir = File(context.cacheDir, "twinspace-logs").apply { mkdirs() }
             val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
             val file = File(dir, "twinspace-log-$stamp.txt")
@@ -55,7 +60,22 @@ object LogExporter {
                     .append("has not logged anything under these tags since boot.\n")
             }
             header.append("\n")
-            file.writeText(header.toString() + lines.joinToString("\n"))
+            val body = StringBuilder(header)
+                .append(lines.joinToString("\n"))
+            // The crash buffer is where the actual crash lives: a Java
+            // crash shows as FATAL EXCEPTION (AndroidRuntime) and a
+            // native crash as "Fatal signal" (DEBUG). Neither is ever
+            // in the TS_BOOT / TS_ACCT lines above, so without this
+            // section a guest that dies before handleBindApplication
+            // leaves no clue why it died.
+            body.append("\n\n--------- beginning of crash\n")
+            if (crashLines.isEmpty()) {
+                body.append("No crash-buffer lines were captured.\n")
+            } else {
+                body.append(crashLines.joinToString("\n"))
+            }
+            body.append("\n")
+            file.writeText(body.toString())
             file
         } catch (e: Exception) {
             Log.e(TAG, "Export log failed: ${e.message}")
@@ -114,6 +134,31 @@ object LogExporter {
             proc.waitFor()
         } catch (e: Exception) {
             Log.e(TAG, "logcat failed: ${e.message}")
+        }
+        return out
+    }
+
+    /**
+     * Reads the crash buffer (-b crash), which holds the actual crash
+     * for this UID: FATAL EXCEPTION (Java) and "Fatal signal"
+     * (native). An app can read its own crashes here without
+     * READ_LOGS, and the guest processes run under the host UID, so
+     * their crashes are included. Returns an empty list on failure.
+     */
+    private fun readCrashLines(): List<String> {
+        val out = ArrayList<String>()
+        try {
+            val proc = Runtime.getRuntime().exec(
+                arrayOf("logcat", "-d", "-b", "crash", "-v", "time")
+            )
+            proc.inputStream.bufferedReader().useLines { seq ->
+                seq.forEach { line ->
+                    if (line.isNotBlank()) out.add(line)
+                }
+            }
+            proc.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "logcat -b crash failed: ${e.message}")
         }
         return out
     }

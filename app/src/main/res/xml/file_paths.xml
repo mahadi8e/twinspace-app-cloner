@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TwinSpace, 2026-11-28: only the debug "Export log" file lives here
+     (app-private cache, twinspace-logs/). Nothing else is shared
+     through this provider. -->
+<paths>
+    <cache-path name="twinspace-logs" path="twinspace-logs/" />
+</paths>

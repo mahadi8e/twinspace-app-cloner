@@ -113,5 +113,8 @@
     <string name="gms_prompt_install">Install</string>
     <string name="gms_prompt_not_now">Not now</string>
     <string name="gms_installing">Installing Google services…</string>
+    <string name="export_log">Export log (debug)</string>
+    <string name="export_log_summary">Share the TS_BOOT / TS_ACCT log lines for debugging</string>
+    <string name="export_log_failed">Could not export the log</string>
 </resources>
 

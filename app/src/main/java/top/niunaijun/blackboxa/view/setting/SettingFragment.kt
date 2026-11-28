@@ -13,9 +13,11 @@ import com.afollestad.materialdialogs.MaterialDialog
 import com.afollestad.materialdialogs.input.input
 import com.afollestad.materialdialogs.list.listItemsSingleChoice
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackboxa.BuildConfig
 import top.niunaijun.blackboxa.R
 import top.niunaijun.blackboxa.app.AppManager
 import top.niunaijun.blackboxa.location.TwinSpaceLocation
+import top.niunaijun.blackboxa.util.LogExporter
 import top.niunaijun.blackboxa.util.toast
 import top.niunaijun.blackboxa.view.gms.GmsManagerActivity
 import top.niunaijun.blackboxa.vpn.TwinSpaceVpn
@@ -119,6 +121,8 @@ class SettingFragment : PreferenceFragmentCompat() {
         initVpnStatus()
 
         initFakeLocation()
+
+        initExportLog()
 
         invalidHideState {
             val rootHidePreference: Preference = (findPreference("root_hide")!!)
@@ -331,6 +335,46 @@ class SettingFragment : PreferenceFragmentCompat() {
         } catch (e: Exception) {
             Log.e(TAG, "Error showing custom location dialog: ${e.message}")
         }
+    }
+
+    /**
+     * TwinSpace, 2026-11-28: debug-only "Export log" (see LogExporter).
+     * Dumps this app's own TS_BOOT / TS_ACCT lines to app-private
+     * storage and shares the file, so the log can be sent without a
+     * PC. Hidden in release builds — BuildConfig.DEBUG is false there,
+     * so the release APK never shows this row at all.
+     */
+    private fun initExportLog() {
+        val pref: Preference = (findPreference("export_log")!!)
+        if (!BuildConfig.DEBUG) {
+            pref.isVisible = false
+            return
+        }
+        pref.setOnPreferenceClickListener {
+            exportLog()
+            true
+        }
+    }
+
+    /** Runs the export off the main thread (logcat + file I/O block). */
+    private fun exportLog() {
+        val ctx = requireContext().applicationContext
+        Thread {
+            val file = LogExporter.export(ctx)
+            try {
+                requireActivity().runOnUiThread {
+                    if (file == null) {
+                        toast(R.string.export_log_failed)
+                        return@runOnUiThread
+                    }
+                    if (!LogExporter.share(ctx, file)) {
+                        toast(R.string.export_log_failed)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error showing export result: ${e.message}")
+            }
+        }.start()
     }
 
     override fun onResume() {

@@ -46,6 +46,14 @@
                 app:title="@string/disable_flag_secure"
                 app:summary="@string/disable_flag_secure_summary" />
 
+        <!-- TwinSpace, 2026-11-28: debug-only. SettingFragment hides
+             this when BuildConfig.DEBUG is false, so the release APK
+             never shows it. -->
+        <Preference
+                android:key="export_log"
+                android:title="@string/export_log"
+                android:summary="@string/export_log_summary" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

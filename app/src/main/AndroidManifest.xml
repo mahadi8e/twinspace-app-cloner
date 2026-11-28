@@ -57,5 +57,22 @@
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
+
+        <!-- TwinSpace, 2026-11-28: debug-only "Export log" (Settings)
+             shares the TS_BOOT / TS_ACCT log file, which lives in
+             app-private cache. The file never leaves the device except
+             through the share sheet the user chooses; nothing is
+             uploaded anywhere. This is the HOST app's own provider —
+             the engine has a separate one
+             (${applicationId}.blackbox.FileProvider). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

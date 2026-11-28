@@ -1726,13 +1726,19 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                     | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                     | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
                     | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION));
+            // TwinSpace, 2026-11-28 (TS_ACCT): log the full intent,
+            // component and resolve result so an "invalid intent"
+            // failure shows exactly why -- which activity, which
+            // package, whether it resolved at all.
+            Log.e(TS_ACCT, "checkKeyIntent type=" + mAccountType + " intent=" + intent + " component=" + intent.getComponent() + " action=" + intent.getAction() + " package=" + intent.getPackage() + " userId=" + mAccounts.userId);
             long bid = Binder.clearCallingIdentity();
             try {
                 ResolveInfo resolveInfo = mPms.resolveActivity(intent, 0, null, mAccounts.userId);
                 if (resolveInfo == null) {
+                    Log.e(TS_ACCT, "checkKeyIntent FAILED type=" + mAccountType + " component=" + intent.getComponent() + " action=" + intent.getAction() + " (resolveActivity returned null for user " + mAccounts.userId + ")");
                     return false;
                 }
-                
+                Log.d(TS_ACCT, "checkKeyIntent OK type=" + mAccountType + " component=" + intent.getComponent() + " resolved=" + (resolveInfo.activityInfo != null ? resolveInfo.activityInfo.name : "null") + " pkg=" + (resolveInfo.activityInfo != null ? resolveInfo.activityInfo.packageName : "null"));
                 return true;
             } finally {
                 Binder.restoreCallingIdentity(bid);

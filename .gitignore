@@ -22,3 +22,12 @@
 .cxx
 local.properties
 /app/release/
+
+# TwinSpace, 2026-11-28: never commit reference-APK analysis output
+# (REF_ANALYSIS.md is local-only; the decoded reference APK lives in
+# workspace/goals/twinspace-app-cloner/ref/, outside this repo, but
+# these entries guard against any decoded output landing here).
+/ref/
+decoded/
+smali/
+jadx_out/

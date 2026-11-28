@@ -259,6 +259,31 @@
          hold these (WallpaperManager enforces them on the host UID). -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.SET_WALLPAPER_HINTS" />
+    <!-- TwinSpace, 2026-11-28: second restore pass (REF_ANALYSIS.md).
+         Compared the C4-cut permissions against the Dual Space
+         reference's declared list (128 tags) and restored only the
+         ones a guest could plausibly check client-side via
+         checkSelfPermission, in the accounts / contacts / phone-state /
+         notifications categories. GET_ACCOUNTS was already restored
+         above. Deliberately NOT restored: AUTHENTICATE_ACCOUNTS,
+         MANAGE_ACCOUNTS, USE_CREDENTIALS, READ_SOCIAL_STREAM,
+         WRITE_SOCIAL_STREAM, SUBSCRIBED_FEEDS_READ,
+         SUBSCRIBED_FEEDS_WRITE, READ_OWNER_DATA, WRITE_OWNER_DATA --
+         all signature|system, so the system never grants them to a
+         non-system host app; declaring them would be a no-op for a
+         guest. USE_SIP was also skipped (dangerous but obsolete; no
+         guest plausibly checks it). -->
+    <!-- A cloned contacts/profile app reads the device-owner profile
+         (READ_PROFILE, dangerous, CONTACTS group). -->
+    <uses-permission android:name="android.permission.READ_PROFILE" />
+    <!-- A cloned dialer answers calls (ANSWER_PHONE_CALLS, dangerous,
+         PHONE group) and manages its own calls (MANAGE_OWN_CALLS,
+         normal). -->
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <!-- A cloned alarm/phone app posting a full-screen notification
+         needs this (USE_FULL_SCREEN_INTENT, normal). -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
         android:usesCleartextTraffic="true">

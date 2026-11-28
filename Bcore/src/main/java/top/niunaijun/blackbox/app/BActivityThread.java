@@ -383,6 +383,29 @@ public class BActivityThread extends IBActivityThread.Stub {
                 + " sourceDir=" + applicationInfo.sourceDir
                 + " nativeLibraryDir=" + applicationInfo.nativeLibraryDir
                 + " splitSourceDirs=" + Arrays.toString(applicationInfo.splitSourceDirs));
+        // TwinSpace, 2026-11-28 (TS_BOOT, information only -- no
+        // behaviour change): log the guest's ApplicationInfo.flags
+        // (is FLAG_SYSTEM set for a system-installed GMS/Vending?
+        // REF_ANALYSIS.md: a bundled SDK check requires
+        // (flags & 129) != 0, i.e. FLAG_SYSTEM|FLAG_UPDATED_SYSTEM_APP)
+        // and the ANDROID_ID the guest sees (per-space device ID is a
+        // gap vs the reference). Only for the Google packages, to keep
+        // the log quiet.
+        if ("com.android.vending".equals(packageName) || "com.google.android.gms".equals(packageName)) {
+            int appFlags = applicationInfo.flags;
+            String androidId = null;
+            try {
+                androidId = android.provider.Settings.Secure.getString(packageContext.getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+            } catch (Throwable t) {
+                androidId = "unreadable: " + t;
+            }
+            Log.e("TS_BOOT", "handleBindApplication pkg=" + packageName
+                    + " flags=" + appFlags
+                    + " FLAG_SYSTEM=" + ((appFlags & ApplicationInfo.FLAG_SYSTEM) != 0)
+                    + " FLAG_UPDATED_SYSTEM_APP=" + ((appFlags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0)
+                    + " (flags&129)=" + (appFlags & 129)
+                    + " ANDROID_ID=" + androidId);
+        }
         if (packageInfo.providers == null) {
             packageInfo.providers = new ProviderInfo[]{};
         }

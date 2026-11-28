@@ -22,16 +22,20 @@ public class CopyExecutor implements Executor {
     public static final String TAG = "CopyExecutor";
 
     /**
-     * TwinSpace, 2026-11-28: BISECT SWITCH for the B6 FLAG_SYSTEM
-     * split copy. Default FALSE: system installs (GMS) copy NO split
-     * APKs into the virtual splits dir and extract NO native libs
-     * from splits -- exactly the pre-B6 behaviour, when the cloned
-     * Play Store reached its Sign in screen. Set to true only to test
-     * whether the B6 split copy is what kills the guest at launch
-     * (white splash -> back to the TwinSpace home). Non-system
-     * (user-app) installs are unaffected by this flag.
+     * TwinSpace, 2026-11-28: BISECT SWITCHES for the B6 FLAG_SYSTEM
+     * split handling, split into two independent flags so each part
+     * can be re-enabled one at a time (one build each) after the
+     * split-bisect result. Both default FALSE: a system install
+     * copies NO split APKs and extracts NO native libs from splits
+     * -- exactly the pre-B6 behaviour, when the cloned Play Store
+     * reached its Sign in screen.
+     * Step 1 (splits only): set ENABLE_SYSTEM_SPLIT_COPY = true.
+     * Step 2 (native-lib extraction): set
+     * ENABLE_SYSTEM_SPLIT_NATIVE_LIB = true.
+     * Non-system (user-app) installs are unaffected by these flags.
      */
     public static final boolean ENABLE_SYSTEM_SPLIT_COPY = false;
+    public static final boolean ENABLE_SYSTEM_SPLIT_NATIVE_LIB = false;
 
     @Override
     public int exec(BPackageSettings ps, InstallOption option, int userId) {
@@ -48,10 +52,11 @@ public class CopyExecutor implements Executor {
             }
             // TwinSpace, 2026-11-28 (BISECT): the B6 change extracted
             // native libs from split APKs for SYSTEM installs too.
-            // Gated by ENABLE_SYSTEM_SPLIT_COPY (default false).
-            // Non-system installs are unaffected.
+            // Gated by ENABLE_SYSTEM_SPLIT_NATIVE_LIB (default false;
+            // step 2 of the re-enable). Non-system installs are
+            // unaffected.
             boolean isSystem = option.isFlag(InstallOption.FLAG_SYSTEM);
-            if (!isSystem || ENABLE_SYSTEM_SPLIT_COPY) {
+            if (!isSystem || ENABLE_SYSTEM_SPLIT_NATIVE_LIB) {
                 for (String split : hostSplits) {
                     try {
                         NativeUtils.copyNativeLib(new File(split), libDir);
@@ -60,7 +65,7 @@ public class CopyExecutor implements Executor {
                     }
                 }
             } else {
-                android.util.Log.e("TS_BOOT", "CopyExecutor " + packageName + ": skipping split native-lib extraction (system install, ENABLE_SYSTEM_SPLIT_COPY=false)");
+                android.util.Log.e("TS_BOOT", "CopyExecutor " + packageName + ": skipping split native-lib extraction (system install, ENABLE_SYSTEM_SPLIT_NATIVE_LIB=false)");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -95,10 +100,11 @@ public class CopyExecutor implements Executor {
             // TwinSpace, 2026-11-28 (BISECT): the B6 change copied the
             // host's split APKs into the virtual splits dir for system
             // installs. Gated by ENABLE_SYSTEM_SPLIT_COPY (default
-            // false) -- with it off, a system install copies nothing,
-            // exactly like the pre-B6 behaviour that reached the Play
-            // Store Sign in screen. Flip the flag to true to test
-            // whether the split copy is what kills the guest at launch.
+            // false; step 1 of the re-enable) -- with it off, a system
+            // install copies nothing, exactly like the pre-B6
+            // behaviour that reached the Play Store Sign in screen.
+            // Flip this flag alone to test whether the split copy is
+            // what kills the guest at launch.
             if (ENABLE_SYSTEM_SPLIT_COPY) {
                 if (copySplits(packageName, hostSplits) != 0) {
                     return -1;

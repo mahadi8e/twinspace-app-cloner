@@ -595,6 +595,25 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     args[i] = null;
                 }
             }
+            // TwinSpace, 2026-11-29 (TS_BOOT): GMS sends broadcasts
+            // as UserHandle.ALL (-1) / CURRENT (-2), and the real AMS
+            // rejects them because TwinSpace lacks
+            // INTERACT_ACROSS_USERS(_FULL) -- the SecurityException
+            // kills the GMS background thread and the process, so the
+            // authenticator's addAccount never returns and sign-in
+            // just retries forever. The virtual space has only one
+            // user, so rewrite a non-virtual userId to the virtual
+            // user id before forwarding. broadcastIntent(WithFeature)
+            // takes userId as its last int argument.
+            int last = args.length - 1;
+            if (last >= 0 && args[last] instanceof Integer) {
+                int userId = (Integer) args[last];
+                int virtualUser = BActivityThread.getUserId();
+                if (userId != virtualUser && (userId == -1 || userId == -2)) {
+                    android.util.Log.e("TS_BOOT", "BroadcastIntent rewrite userId " + userId + " -> " + virtualUser + " intent=" + intent.getAction());
+                    args[last] = virtualUser;
+                }
+            }
             return method.invoke(who, args);
         }
 

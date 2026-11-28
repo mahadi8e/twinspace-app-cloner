@@ -364,15 +364,25 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
 
         Log.e("TwinSpaceLaunch", "bind pkg=" + packageName + " process=" + processName + " user=" + BActivityThread.getUserId());
+        Log.e("TS_BOOT", "handleBindApplication start pkg=" + packageName + " process=" + processName + " user=" + BActivityThread.getUserId());
         PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, BActivityThread.getUserId());
         // TwinSpace: a null packageInfo (virtual user never created/persisted)
         // used to NPE on the next line, killing the guest before any UI.
         // Fail with a clear message instead.
         if (packageInfo == null || packageInfo.applicationInfo == null) {
             Log.e("TwinSpaceLaunch", "bind FAILED: no packageInfo for pkg=" + packageName + " user=" + BActivityThread.getUserId() + " (virtual user missing? re-clone the app)");
+            Log.e("TS_BOOT", "handleBindApplication FAILED: no packageInfo for pkg=" + packageName + " user=" + BActivityThread.getUserId());
             throw new RuntimeException("guest package not installed for user: " + packageName);
         }
         ApplicationInfo applicationInfo = packageInfo.applicationInfo;
+        // TwinSpace, 2026-11-28 (TS_BOOT): the guest class loader is
+        // built from this ApplicationInfo (sourceDir + splitSourceDirs
+        // + nativeLibraryDir). Log it so a bad split on the dex path
+        // can be seen in logcat when the guest dies at launch.
+        Log.e("TS_BOOT", "handleBindApplication pkg=" + packageName + " process=" + processName
+                + " sourceDir=" + applicationInfo.sourceDir
+                + " nativeLibraryDir=" + applicationInfo.nativeLibraryDir
+                + " splitSourceDirs=" + Arrays.toString(applicationInfo.splitSourceDirs));
         if (packageInfo.providers == null) {
             packageInfo.providers = new ProviderInfo[]{};
         }
@@ -497,11 +507,18 @@ public class BActivityThread extends IBActivityThread.Stub {
             installProviders(mInitialApplication, bindData.processName, bindData.providers);
 
             onBeforeApplicationOnCreate(packageName, processName, application);
+            // TwinSpace, 2026-11-28 (TS_BOOT): if the guest dies here,
+            // the "before" line is the last TS_BOOT line before the
+            // crash; the "after" line proves onCreate returned.
+            Log.e("TS_BOOT", "handleBindApplication calling Application.onCreate pkg=" + packageName + " app=" + application.getClass().getName());
             AppInstrumentation.get().callApplicationOnCreate(application);
+            Log.e("TS_BOOT", "handleBindApplication Application.onCreate returned pkg=" + packageName);
             onAfterApplicationOnCreate(packageName, processName, application);
+            Log.e("TS_BOOT", "handleBindApplication done pkg=" + packageName + " process=" + processName);
 
             HookManager.get().checkEnv(HCallbackProxy.class);
         } catch (Exception e) {
+            Log.e("TS_BOOT", "handleBindApplication FAILED pkg=" + packageName + " process=" + processName, e);
             Slog.e(TAG, "Critical error in handleBindApplication", e);
             throw new RuntimeException("Unable to makeApplication", e);
         }
@@ -671,13 +688,23 @@ public class BActivityThread extends IBActivityThread.Stub {
                         }
                     }
                 }
-                return new dalvik.system.PathClassLoader(dexPath.toString(),
+                // TwinSpace, 2026-11-28 (TS_BOOT): trace the guest
+                // class loader -- a bad split on the dex path or a bad
+                // nativeLibraryDir kills the guest before Application.
+                Log.e("TS_BOOT", "getClassLoader pkg=" + appInfo.packageName
+                        + " dexPath=" + dexPath
+                        + " nativeLibraryDir=" + appInfo.nativeLibraryDir
+                        + " splits=" + Arrays.toString(splits));
+                ClassLoader cl = new dalvik.system.PathClassLoader(dexPath.toString(),
                         appInfo.nativeLibraryDir, ClassLoader.getSystemClassLoader());
+                Log.e("TS_BOOT", "getClassLoader done pkg=" + appInfo.packageName);
+                return cl;
             }
             
             
             return ClassLoader.getSystemClassLoader();
         } catch (Exception e) {
+            Log.e("TS_BOOT", "getClassLoader FAILED pkg=" + appInfo.packageName, e);
             Slog.w(TAG, "Error getting class loader: " + e.getMessage());
             return ClassLoader.getSystemClassLoader();
         }

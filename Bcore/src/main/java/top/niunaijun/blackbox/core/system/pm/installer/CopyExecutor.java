@@ -21,6 +21,18 @@ public class CopyExecutor implements Executor {
 
     public static final String TAG = "CopyExecutor";
 
+    /**
+     * TwinSpace, 2026-11-28: BISECT SWITCH for the B6 FLAG_SYSTEM
+     * split copy. Default FALSE: system installs (GMS) copy NO split
+     * APKs into the virtual splits dir and extract NO native libs
+     * from splits -- exactly the pre-B6 behaviour, when the cloned
+     * Play Store reached its Sign in screen. Set to true only to test
+     * whether the B6 split copy is what kills the guest at launch
+     * (white splash -> back to the TwinSpace home). Non-system
+     * (user-app) installs are unaffected by this flag.
+     */
+    public static final boolean ENABLE_SYSTEM_SPLIT_COPY = false;
+
     @Override
     public int exec(BPackageSettings ps, InstallOption option, int userId) {
         String packageName = ps.pkg.packageName;
@@ -34,17 +46,21 @@ public class CopyExecutor implements Executor {
             if (!option.isFlag(InstallOption.FLAG_SYSTEM)) {
                 NativeUtils.copyNativeLib(new File(ps.pkg.baseCodePath), libDir);
             }
-            // TwinSpace, 2026-11-27: extract native libs from split APKs
-            // for ALL install types. System installs (GMS) used to skip
-            // this entirely, so a split's .so files never reached the
-            // guest. The base APK's own libs are still skipped for
-            // system installs (unchanged behaviour).
-            for (String split : hostSplits) {
-                try {
-                    NativeUtils.copyNativeLib(new File(split), libDir);
-                } catch (Exception e) {
-                    Slog.w(TAG, "failed extracting native libs from split " + split + ": " + e.getMessage());
+            // TwinSpace, 2026-11-28 (BISECT): the B6 change extracted
+            // native libs from split APKs for SYSTEM installs too.
+            // Gated by ENABLE_SYSTEM_SPLIT_COPY (default false).
+            // Non-system installs are unaffected.
+            boolean isSystem = option.isFlag(InstallOption.FLAG_SYSTEM);
+            if (!isSystem || ENABLE_SYSTEM_SPLIT_COPY) {
+                for (String split : hostSplits) {
+                    try {
+                        NativeUtils.copyNativeLib(new File(split), libDir);
+                    } catch (Exception e) {
+                        Slog.w(TAG, "failed extracting native libs from split " + split + ": " + e.getMessage());
+                    }
                 }
+            } else {
+                android.util.Log.e("TS_BOOT", "CopyExecutor " + packageName + ": skipping split native-lib extraction (system install, ENABLE_SYSTEM_SPLIT_COPY=false)");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -76,14 +92,19 @@ public class CopyExecutor implements Executor {
                 return -1;
             }
         } else if (option.isFlag(InstallOption.FLAG_SYSTEM)) {
-            // TwinSpace, 2026-11-27: system installs (GMS) used to
-            // copy NOTHING -- resolveHostSplits returned an empty list
-            // for FLAG_SYSTEM, so the guest only ever saw the base APK
-            // and missed config-split resources and native libs. Copy
-            // the splits into the virtual splits dir too (the base APK
-            // itself is still used in place from the host path).
-            if (copySplits(packageName, hostSplits) != 0) {
-                return -1;
+            // TwinSpace, 2026-11-28 (BISECT): the B6 change copied the
+            // host's split APKs into the virtual splits dir for system
+            // installs. Gated by ENABLE_SYSTEM_SPLIT_COPY (default
+            // false) -- with it off, a system install copies nothing,
+            // exactly like the pre-B6 behaviour that reached the Play
+            // Store Sign in screen. Flip the flag to true to test
+            // whether the split copy is what kills the guest at launch.
+            if (ENABLE_SYSTEM_SPLIT_COPY) {
+                if (copySplits(packageName, hostSplits) != 0) {
+                    return -1;
+                }
+            } else {
+                android.util.Log.e("TS_BOOT", "CopyExecutor " + packageName + ": skipping split copy (system install, ENABLE_SYSTEM_SPLIT_COPY=false)");
             }
         }
         return 0;
@@ -116,6 +137,10 @@ public class CopyExecutor implements Executor {
         if (!result.isEmpty()) {
             Slog.d(TAG, "found " + result.size() + " split apk(s) for " + packageName);
         }
+        // TwinSpace, 2026-11-28 (TS_BOOT): log which splits exist per
+        // package, so a bad split on the guest dex path can be seen in
+        // logcat when the guest dies at launch.
+        android.util.Log.e("TS_BOOT", "CopyExecutor.resolveHostSplits " + packageName + ": " + result.size() + " host splits " + result);
         return result;
     }
 
